@@ -63,6 +63,7 @@
 
 #include "GameClient/AnimateWindowManager.h"
 #include "GameClient/ControlBar.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/ControlBarScheme.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/Display.h"
@@ -3825,5 +3826,11 @@ void ControlBar::setFullViewportHeight()
 
 void ControlBar::setScaledViewportHeight()
 {
+	// a centered (uniform) control bar leaves the world visible to its left and right
+	if (getControlBarLayout(800.0f, 600.0f).uniform)
+	{
+		setFullViewportHeight();
+		return;
+	}
 	TheTacticalView->setHeight(TheDisplay->getHeight() * TheGlobalData->m_viewportHeightScale);
 }
