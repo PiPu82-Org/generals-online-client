@@ -273,6 +273,7 @@ public:
 private:
 	ControlBarScheme *m_currentScheme;													///< the current scheme that everythign uses
 	Coord2D m_multiplier;
+	ICoord2D m_layoutOffset;	///< screen offset of the scheme images, see ControlBarLayout
 
 	typedef std::list< ControlBarScheme* > ControlBarSchemeList;			///< list of control bar schemes
 	ControlBarSchemeList m_schemeList;

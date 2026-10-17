@@ -1,4 +1,5 @@
 #include "GameNetwork/GeneralsOnline/GeneralsOnline_Settings.h"
+#include "GameClient/ControlBarLayout.h"
 #include "../json.hpp"
 #include "../OnlineServices_LobbyInterface.h"
 #include "../OnlineServices_Init.h"
@@ -12,6 +13,10 @@
 #define SETTINGS_KEY_RENDER_LIMIT_FRAMERATE "limit_framerate"
 #define SETTINGS_KEY_RENDER_FRAMERATE_LIMIT_FPS_VAL "fps_limit"
 #define SETTINGS_KEY_RENDER_DRAW_STATS_OVERLAY "stats_overlay"
+
+#define SETTINGS_KEY_UI "ui"
+#define SETTINGS_KEY_UI_CONTROLBAR_LAYOUT "controlbar_layout"
+#define SETTINGS_KEY_UI_CONTROLBAR_SCALE "controlbar_scale"
 
 #define SETTINGS_KEY_CHAT "chat"
 #define SETTINGS_KEY_CHAT_LIFE_SECONDS "duration_seconds_until_fade_out"
@@ -215,6 +220,27 @@ void GenOnlineSettings::Load(void)
 				}
 			}
 
+			if (jsonSettings.contains(SETTINGS_KEY_UI))
+			{
+				auto uiSettings = jsonSettings[SETTINGS_KEY_UI];
+
+				if (uiSettings.contains(SETTINGS_KEY_UI_CONTROLBAR_LAYOUT) && uiSettings[SETTINGS_KEY_UI_CONTROLBAR_LAYOUT].is_string())
+				{
+					const std::string strLayout = uiSettings[SETTINGS_KEY_UI_CONTROLBAR_LAYOUT];
+					if (strLayout == "stretch")
+						TheControlBarLayoutSettings.mode = CONTROLBAR_LAYOUT_STRETCH;
+					else if (strLayout == "uniform")
+						TheControlBarLayoutSettings.mode = CONTROLBAR_LAYOUT_UNIFORM;
+					else
+						TheControlBarLayoutSettings.mode = CONTROLBAR_LAYOUT_AUTO;
+				}
+
+				if (uiSettings.contains(SETTINGS_KEY_UI_CONTROLBAR_SCALE))
+				{
+					TheControlBarLayoutSettings.scale = std::clamp<float>(static_cast<float>(uiSettings[SETTINGS_KEY_UI_CONTROLBAR_SCALE]), 0.5f, 1.f);
+				}
+			}
+
             if (jsonSettings.contains(SETTINGS_KEY_NETWORK))
             {
                 auto networkSettings = jsonSettings[SETTINGS_KEY_NETWORK];
@@ -347,6 +373,7 @@ void GenOnlineSettings::Load(void)
 		m_Render_FramerateLimit_FPSVal = 60;
 		m_Render_DrawStatsOverlay = true;
 		m_Chat_LifeSeconds = 30;
+		TheControlBarLayoutSettings = ControlBarLayoutSettings();
 
         m_Social_Notification_FriendComesOnline_Menus = true;
         m_Social_Notification_FriendComesOnline_Gameplay = true;
@@ -394,6 +421,15 @@ void GenOnlineSettings::Save()
 					{SETTINGS_KEY_RENDER_LIMIT_FRAMERATE, m_Render_LimitFramerate},
 					{SETTINGS_KEY_RENDER_FRAMERATE_LIMIT_FPS_VAL, m_Render_FramerateLimit_FPSVal},
 					{SETTINGS_KEY_RENDER_DRAW_STATS_OVERLAY, m_Render_DrawStatsOverlay},
+				}
+		},
+
+		{
+			SETTINGS_KEY_UI,
+				{
+					{SETTINGS_KEY_UI_CONTROLBAR_LAYOUT, TheControlBarLayoutSettings.mode == CONTROLBAR_LAYOUT_STRETCH ? "stretch"
+						: TheControlBarLayoutSettings.mode == CONTROLBAR_LAYOUT_UNIFORM ? "uniform" : "auto"},
+					{SETTINGS_KEY_UI_CONTROLBAR_SCALE, TheControlBarLayoutSettings.scale},
 				}
 		},
 
