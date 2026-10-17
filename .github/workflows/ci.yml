@@ -140,7 +140,7 @@ jobs:
           # Freunde-Edition (Fork PiPu82-Org): nur die eigene Release-Variante bauen
           - preset: "win32-vcpkg-friends"
             tools: false
-            extras: false
+            extras: true
       fail-fast: false
     uses: ./.github/workflows/build-toolchain.yml
     with:
