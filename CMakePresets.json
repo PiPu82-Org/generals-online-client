@@ -237,6 +237,16 @@
             "cacheVariables": {
                 "RTS_BUILD_OPTION_PROFILE": "ON"
             }
+        },
+        {
+            "name": "win32-vcpkg-friends",
+            "inherits": "win32-vcpkg",
+            "hidden": false,
+            "displayName": "Windows 32bit VCPKG Release (Freunde-Edition: 4 GB, eigener Server)",
+            "cacheVariables": {
+                "GENERALS_ONLINE_LARGE_ADDRESS_AWARE": "ON",
+                "GENERALS_ONLINE_SERVER_HOST": ""
+            }
         }
     ],
     "buildPresets": [
@@ -357,6 +367,12 @@
             "configurePreset": "mingw-w64-i686-profile",
             "displayName": "Build MinGW-w64 32-bit (i686) Profile",
             "description": "Build MinGW-w64 32-bit (i686) Profile"
+        },
+        {
+            "name": "win32-vcpkg-friends",
+            "configurePreset": "win32-vcpkg-friends",
+            "description": "Build Windows 32bit VCPKG Release",
+            "configuration": "Release"
         }
     ],
     "workflowPresets": [
