@@ -245,7 +245,7 @@
             "displayName": "Windows 32bit VCPKG Release (Freunde-Edition: 4 GB, eigener Server)",
             "cacheVariables": {
                 "GENERALS_ONLINE_LARGE_ADDRESS_AWARE": "ON",
-                "GENERALS_ONLINE_SERVER_HOST": ""
+                "GENERALS_ONLINE_SERVER_HOST": "generals.deniserk.de"
             }
         }
     ],
