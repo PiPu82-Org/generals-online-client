@@ -191,7 +191,7 @@ std::string NGMP_OnlineServicesManager::GetAPIEndpoint(const char* szEndpoint)
 	{
 		if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
 		{
-			return std::format("https://{}/env/prod/contract/1/{}", NGMP_OnlineServicesManager::Settings.Network_ServerHost(), szEndpoint);
+			return std::format("{}://{}/env/prod/contract/1/{}", NGMP_OnlineServicesManager::Settings.Network_ServerScheme(), NGMP_OnlineServicesManager::Settings.Network_ServerHost(), szEndpoint);
 		}
 		else if (NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint())
 		{

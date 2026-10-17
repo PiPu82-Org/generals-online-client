@@ -40,6 +40,7 @@
 #define SETTINGS_KEY_NETWORK_HTTP_VERSION "http_version"
 #define SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT "use_alternative_endpoint"
 #define SETTINGS_KEY_NETWORK_SERVER_HOST "server_host"
+#define SETTINGS_KEY_NETWORK_SERVER_USE_TLS "server_use_tls"
 
 #define SETTINGS_KEY_PLUGINS "plugins"
 #define SETTINGS_KEY_PLUGINS_ANTICHEAT "anticheat"
@@ -277,6 +278,11 @@ void GenOnlineSettings::Load(void)
                         m_Network_ServerHost = strHost;
                     }
                 }
+
+                if (networkSettings.contains(SETTINGS_KEY_NETWORK_SERVER_USE_TLS) && networkSettings[SETTINGS_KEY_NETWORK_SERVER_USE_TLS].is_boolean())
+                {
+                    m_Network_ServerUseTLS = networkSettings[SETTINGS_KEY_NETWORK_SERVER_USE_TLS];
+                }
             }
 
 			if (jsonSettings.contains(SETTINGS_KEY_DEBUG))
@@ -451,7 +457,8 @@ void GenOnlineSettings::Save()
                 {
                     {SETTINGS_KEY_NETWORK_HTTP_VERSION, m_Network_HTTPVersion},
                     {SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT, m_Network_UseAlternativeEndpoint},
-                    {SETTINGS_KEY_NETWORK_SERVER_HOST, m_Network_ServerHost}
+                    {SETTINGS_KEY_NETWORK_SERVER_HOST, m_Network_ServerHost},
+                    {SETTINGS_KEY_NETWORK_SERVER_USE_TLS, m_Network_ServerUseTLS}
                 }
         },
 

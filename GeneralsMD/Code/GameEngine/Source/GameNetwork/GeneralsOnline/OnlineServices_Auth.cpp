@@ -447,7 +447,7 @@ void NGMP_OnlineServices_AuthInterface::DoFullLoginFlow()
                         std::string strURI = std::format("https://www.playgenerals.online/login/?gamecode={}&env=test", m_strCode.c_str());
 #else
                         std::string strURI = NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer()
-                            ? std::format("https://{}/login/?gamecode={}", NGMP_OnlineServicesManager::Settings.Network_ServerHost(), m_strCode.c_str())
+                            ? std::format("{}://{}/login/?gamecode={}", NGMP_OnlineServicesManager::Settings.Network_ServerScheme(), NGMP_OnlineServicesManager::Settings.Network_ServerHost(), m_strCode.c_str())
                             : std::format("https://www.playgenerals.online/login/?gamecode={}", m_strCode.c_str());
 #endif
 
@@ -779,8 +779,10 @@ std::string NGMP_OnlineServices_AuthInterface::GetCredentialsFilePath()
 	std::string strCredsPath = std::format("{}/GeneralsOnlineData/credentials_dev_env_{}.json", TheGlobalData->getPath_UserData().str(), rts::ClientInstance::getInstanceIndex());
 #else
 	// separate credentials per self-hosted server, so tokens are never sent to the wrong service
+	std::string strHostForFile = NGMP_OnlineServicesManager::Settings.Network_ServerHost();
+	std::replace(strHostForFile.begin(), strHostForFile.end(), ':', '_');
 	std::string strCredsPath = NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer()
-		? std::format("{}/GeneralsOnlineData/credentials_{}.json", TheGlobalData->getPath_UserData().str(), NGMP_OnlineServicesManager::Settings.Network_ServerHost())
+		? std::format("{}/GeneralsOnlineData/credentials_{}.json", TheGlobalData->getPath_UserData().str(), strHostForFile)
 		: std::format("{}/GeneralsOnlineData/{}", TheGlobalData->getPath_UserData().str(), CREDENTIALS_FILENAME);
 #endif
 	return strCredsPath;
