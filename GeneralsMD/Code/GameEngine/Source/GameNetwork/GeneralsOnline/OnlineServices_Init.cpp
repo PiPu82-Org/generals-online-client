@@ -427,6 +427,15 @@ void NGMP_OnlineServicesManager::StartVersionCheck(std::function<void(bool bSucc
 				{
 					NetworkLog(ELogVerbosity::LOG_RELEASE, "VERSION CHECK: Needs Update");
 
+					// never download and run executables chosen by a self-hosted server,
+					// updates for such setups are installed manually
+					if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+					{
+						NetworkLog(ELogVerbosity::LOG_RELEASE, "VERSION CHECK: Self-hosted server requires a newer client, automatic update disabled");
+						fnCallback(false, false);
+						return;
+					}
+
 					// the name becomes a local path, so it must be a bare file name
 					const std::string& strName = authResp.patcher_name;
 					if (strName.empty() || strName.find_first_of("/\\:") != std::string::npos || strName.find("..") != std::string::npos)
@@ -766,6 +775,11 @@ void NGMP_OnlineServicesManager::CancelUpdate()
 
 void NGMP_OnlineServicesManager::LaunchPatcher()
 {
+	if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+	{
+		return;
+	}
+
 	char GameDir[MAX_PATH + 1] = {};
 	::GetCurrentDirectoryA(MAX_PATH + 1u, GameDir);
 
@@ -815,6 +829,11 @@ void NGMP_OnlineServicesManager::LaunchPatcher()
 
 void NGMP_OnlineServicesManager::StartDownloadUpdate(std::function<void(void)> cb)
 {
+	if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+	{
+		return;
+	}
+
 	TheDownloadManager->SetFileName("Connecting to update service...");
 	TheDownloadManager->OnStatusUpdate(DOWNLOADSTATUS_CONNECTING);
 
