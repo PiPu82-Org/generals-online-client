@@ -105,6 +105,11 @@ static int FRAME_GROUPING_CAP = 64;
 
 #define GENERALS_ONLINE_WIDESCREEN 1
 
+// Host of a self-hosted GeneralsOnline service; empty = official servers. Can be overridden in settings.json (network.server_host).
+#ifndef GENERALS_ONLINE_DEFAULT_SERVER_HOST
+#define GENERALS_ONLINE_DEFAULT_SERVER_HOST ""
+#endif
+
 #if defined(GENERALS_ONLINE_WIDESCREEN)
 #define DEFAULT_DISPLAY_WIDTH      800
 #define DEFAULT_DISPLAY_HEIGHT     600

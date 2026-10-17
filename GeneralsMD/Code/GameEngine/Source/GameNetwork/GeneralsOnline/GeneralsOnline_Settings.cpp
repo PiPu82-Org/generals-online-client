@@ -37,6 +37,7 @@
 #define SETTINGS_KEY_NETWORK "network"
 #define SETTINGS_KEY_NETWORK_HTTP_VERSION "http_version"
 #define SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT "use_alternative_endpoint"
+#define SETTINGS_KEY_NETWORK_SERVER_HOST "server_host"
 
 #define SETTINGS_KEY_PLUGINS "plugins"
 #define SETTINGS_KEY_PLUGINS_ANTICHEAT "anticheat"
@@ -264,6 +265,11 @@ void GenOnlineSettings::Load(void)
                 {
                     m_Network_UseAlternativeEndpoint = networkSettings[SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT];
                 }
+
+                if (networkSettings.contains(SETTINGS_KEY_NETWORK_SERVER_HOST) && networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST].is_string())
+                {
+                    m_Network_ServerHost = networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST];
+                }
             }
 
 			if (jsonSettings.contains(SETTINGS_KEY_DEBUG))
@@ -437,7 +443,8 @@ void GenOnlineSettings::Save()
             SETTINGS_KEY_NETWORK,
                 {
                     {SETTINGS_KEY_NETWORK_HTTP_VERSION, m_Network_HTTPVersion},
-                    {SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT, m_Network_UseAlternativeEndpoint}
+                    {SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT, m_Network_UseAlternativeEndpoint},
+                    {SETTINGS_KEY_NETWORK_SERVER_HOST, m_Network_ServerHost}
                 }
         },
 

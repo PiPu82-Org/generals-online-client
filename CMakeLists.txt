@@ -33,6 +33,13 @@ endif()
 # Top level project, doesn't really affect anything.
 project(genzh LANGUAGES C CXX)
 
+# Options for self-hosted GeneralsOnline builds (defaults keep the official behavior)
+set(GENERALS_ONLINE_SERVER_HOST "" CACHE STRING "Host of a self-hosted GeneralsOnline service, empty = official servers")
+if(GENERALS_ONLINE_SERVER_HOST)
+    add_compile_definitions("GENERALS_ONLINE_DEFAULT_SERVER_HOST=\"${GENERALS_ONLINE_SERVER_HOST}\"")
+endif()
+option(GENERALS_ONLINE_LARGE_ADDRESS_AWARE "Link the game with /LARGEADDRESSAWARE (4 GB address space on 64-bit Windows)" OFF)
+
 # This file handles extra settings wanted/needed for different compilers.
 include(cmake/compilers.cmake)
 

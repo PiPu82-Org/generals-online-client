@@ -630,7 +630,10 @@ bool NetworkMeshLibrary::EnsureInitialized(int64_t userID)
 
 	// Every STUN entry must resolve to a distinct address, or the native ICE client retries
 	// duplicates forever.
-	SteamNetworkingUtils()->SetGlobalConfigValueString(k_ESteamNetworkingConfig_P2P_STUN_ServerList, "stun:stun.playgenerals.online:53,stun:stun.playgenerals.online:3478,stun:stun.l.google.com:19302");
+	const std::string strStunServers = NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer()
+		? std::format("stun:{}:3478,stun:stun.l.google.com:19302", NGMP_OnlineServicesManager::Settings.Network_ServerHost())
+		: std::string("stun:stun.playgenerals.online:53,stun:stun.playgenerals.online:3478,stun:stun.l.google.com:19302");
+	SteamNetworkingUtils()->SetGlobalConfigValueString(k_ESteamNetworkingConfig_P2P_STUN_ServerList, strStunServers.c_str());
 
 
 	ESteamNetworkingSocketsDebugOutputType logType =
@@ -708,7 +711,9 @@ NetworkMesh::NetworkMesh()
 
 	// comma-separated; no "?transport=udp" suffix, the native ICE client takes everything after
 	// the host as the port
-	m_strTurnServerList = "turn:turn.playgenerals.online:53,turn:turn.playgenerals.online:3478";
+	m_strTurnServerList = NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer()
+		? std::format("turn:{}:3478", NGMP_OnlineServicesManager::Settings.Network_ServerHost())
+		: std::string("turn:turn.playgenerals.online:53,turn:turn.playgenerals.online:3478");
 
 	m_strTurnUsername = pLobbyInterface->GetLobbyTurnUsername();
 	m_strTurnToken = pLobbyInterface->GetLobbyTurnToken();

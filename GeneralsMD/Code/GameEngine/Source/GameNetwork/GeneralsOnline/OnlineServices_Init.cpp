@@ -189,7 +189,11 @@ std::string NGMP_OnlineServicesManager::GetAPIEndpoint(const char* szEndpoint)
 	}
 	else // PROD
 	{
-		if (NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint())
+		if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+		{
+			return std::format("https://{}/env/prod/contract/1/{}", NGMP_OnlineServicesManager::Settings.Network_ServerHost(), szEndpoint);
+		}
+		else if (NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint())
 		{
 			return std::format("https://api-ru.playgenerals.online/env/prod/contract/1/{}", szEndpoint);
 		}
@@ -866,7 +870,7 @@ void NGMP_OnlineServicesManager::OnLogin(ELoginResult loginResult, const char* s
 		m_pWebSocket = std::make_shared<WebSocket>();
 
 		// TODO_NGMP: This should come from the service, if the service was russia-aware
-		std::string strWebsocketAddr = NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint() ? "wss://api-ru.playgenerals.online/ws" : std::string(szWSAddr);
+		std::string strWebsocketAddr = NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint() && !NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer() ? "wss://api-ru.playgenerals.online/ws" : std::string(szWSAddr);
 
         m_pWebSocket->Connect(strWebsocketAddr.c_str(), false, [=]()
             {
@@ -1089,6 +1093,12 @@ void NGMP_OnlineServicesManager::InitSentry()
 
 		std::error_code ec;
 		std::filesystem::create_directories(strDumpPath, ec);
+	}
+
+	// crash reports of self-hosted setups don't belong to the GeneralsOnline team
+	if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+	{
+		return;
 	}
 
 	sentry_options_t* options = sentry_options_new();

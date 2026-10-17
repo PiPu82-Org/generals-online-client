@@ -73,6 +73,8 @@ public:
 	bool DataPacks_UseCommunityPatch() const { return m_DataPacks_UseCommunityPatch; }
 
 	bool Network_UseAlternativeEndpoint() const { return m_Network_UseAlternativeEndpoint; }
+	const std::string& Network_ServerHost() const { return m_Network_ServerHost; }
+	bool Network_UsesCustomServer() const { return !m_Network_ServerHost.empty(); }
 	EHTTPVersion Network_GetHTTPVersion() const { return m_Network_HTTPVersion; }
 	int Network_GetHTTPVersionForCurl() const
 	{
@@ -145,4 +147,5 @@ private:
 
 	EHTTPVersion m_Network_HTTPVersion = EHTTPVersion::HTTP_VERSION_AUTO;
 	bool m_Network_UseAlternativeEndpoint = false;
+	std::string m_Network_ServerHost = GENERALS_ONLINE_DEFAULT_SERVER_HOST;
 };
