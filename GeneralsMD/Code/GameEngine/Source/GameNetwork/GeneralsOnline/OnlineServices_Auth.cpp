@@ -6,6 +6,7 @@
 #include "GameNetwork/GeneralsOnline/json.hpp"
 #include <shellapi.h>
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <random>
 #include <windows.h>
@@ -431,6 +432,15 @@ void NGMP_OnlineServices_AuthInterface::DoFullLoginFlow()
 						m_lastCheckCode = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::utc_clock::now().time_since_epoch()).count();
 
 						m_strCode = authResp.login_code;
+
+						// the code ends up in a URL opened in the browser, accept only plain tokens
+						if (m_strCode.empty() || !std::all_of(m_strCode.begin(), m_strCode.end(), [](unsigned char c) { return std::isalnum(c) || c == '-' || c == '_'; }))
+						{
+							NetworkLog(ELogVerbosity::LOG_RELEASE, "Rejected invalid login code");
+							m_bWaitingLogin = false;
+							fnGetLoginCodeFailed();
+							return;
+						}
 						NetworkLog(ELogVerbosity::LOG_DEBUG, "Login Code is %s", m_strCode.c_str());
 
 #if defined(USE_TEST_ENV)

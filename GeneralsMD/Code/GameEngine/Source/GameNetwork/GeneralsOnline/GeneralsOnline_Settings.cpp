@@ -1,6 +1,8 @@
 #include "GameNetwork/GeneralsOnline/GeneralsOnline_Settings.h"
 #include "GameClient/ControlBarLayout.h"
 #include "../json.hpp"
+#include <algorithm>
+#include <cctype>
 #include "../OnlineServices_LobbyInterface.h"
 #include "../OnlineServices_Init.h"
 
@@ -268,7 +270,12 @@ void GenOnlineSettings::Load(void)
 
                 if (networkSettings.contains(SETTINGS_KEY_NETWORK_SERVER_HOST) && networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST].is_string())
                 {
-                    m_Network_ServerHost = networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST];
+                    const std::string strHost = networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST];
+                    // host name (optionally with :port) only, it is put into URLs
+                    if (std::all_of(strHost.begin(), strHost.end(), [](unsigned char c) { return std::isalnum(c) || c == '.' || c == '-' || c == ':'; }))
+                    {
+                        m_Network_ServerHost = strHost;
+                    }
                 }
             }
 
