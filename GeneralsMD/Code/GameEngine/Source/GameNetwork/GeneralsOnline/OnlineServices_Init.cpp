@@ -925,7 +925,10 @@ void NGMP_OnlineServicesManager::Init()
 	m_pHTTPManager = new HTTPManager();
 	m_pHTTPManager->Initialize();
 
-    std::string strPlugin = NGMP_OnlineServicesManager::Settings.GetAnticheatPlugin();
+    // the official anticheat plugins work with the GeneralsOnline anticheat backend, not with self-hosted servers
+    std::string strPlugin = NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer()
+        ? std::string()
+        : NGMP_OnlineServicesManager::Settings.GetAnticheatPlugin();
 
 	// Empty name means no anticheat plugin configured; skip loading.
 	if (!strPlugin.empty())
