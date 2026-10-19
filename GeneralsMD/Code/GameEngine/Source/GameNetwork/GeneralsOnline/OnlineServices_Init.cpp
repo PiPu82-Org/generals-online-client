@@ -939,6 +939,8 @@ void NGMP_OnlineServicesManager::Init()
 
 	// TODO_NGMP: Better location
 	// TODO_NGMP: Get all of this from the service
+	// the friends edition registers its own choices at engine start (GameEngine.cpp)
+#if !defined(GENERALS_ONLINE_FRIENDS_EDITION)
 	int moneyVal = 100000;
 	int maxMoneyVal = 1000000;
 
@@ -951,6 +953,7 @@ void NGMP_OnlineServicesManager::Init()
 
 		moneyVal += 50000;
 	}
+#endif
 
 #if 0
 	std::map<AsciiString, RGBColor> mapColors;

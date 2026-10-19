@@ -37,6 +37,8 @@ project(genzh LANGUAGES C CXX)
 set(GENERALS_ONLINE_SERVER_HOST "" CACHE STRING "Host of a self-hosted GeneralsOnline service, empty = official servers")
 if(GENERALS_ONLINE_SERVER_HOST)
     add_compile_definitions("GENERALS_ONLINE_DEFAULT_SERVER_HOST=\"${GENERALS_ONLINE_SERVER_HOST}\"")
+    # friends edition: larger starting money choices, wider camera zoom (see NextGenMP_defines.h)
+    add_compile_definitions(GENERALS_ONLINE_FRIENDS_EDITION=1)
 endif()
 option(GENERALS_ONLINE_LARGE_ADDRESS_AWARE "Link the game with /LARGEADDRESSAWARE (4 GB address space on 64-bit Windows)" OFF)
 

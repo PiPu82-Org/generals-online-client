@@ -70,6 +70,14 @@ void showNotificationBox(AsciiString nick, UnicodeString message, bool bPlaySoun
 #define GENERALS_ONLINE_MIN_LOBBY_CAMERA_ZOOM 210
 #define GENERALS_ONLINE_MAX_LOBBY_CAMERA_ZOOM 1000
 
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+// Friends edition: the camera may zoom out at least this many times the default lobby height (the whole terrain is drawn
+// then), and the mouse wheel zooms proportionally faster above GENERALS_ONLINE_MAX_LOBBY_CAMERA_ZOOM.
+#define GENERALS_ONLINE_FRIENDS_CAMERA_ZOOM_FACTOR 6
+// Starting money choices offered in skirmish, LAN and online lobbies (in addition to Multiplayer.ini)
+#define GENERALS_ONLINE_FRIENDS_STARTING_MONEY { 100000, 250000, 500000, 1000000 }
+#endif
+
 #define GENERALS_ONLINE_HIGH_FPS_SERVER 1
 
 #if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)

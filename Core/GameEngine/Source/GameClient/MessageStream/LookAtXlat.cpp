@@ -52,6 +52,9 @@
 #include "GameLogic/GameLogic.h"
 
 #include "Common/GlobalData.h"			// for camera pitch angle only
+#if defined(GENERALS_ONLINE) && defined(GENERALS_ONLINE_FRIENDS_EDITION)
+#include "GameNetwork/GeneralsOnline/NextGenMP_defines.h"
+#endif
 
 LookAtTranslator* TheLookAtTranslator = nullptr;
 
@@ -418,7 +421,12 @@ GameMessageDisposition LookAtTranslator::translateGameMessage(const GameMessage*
 		m_lastMouseMoveTimeMsec = timeGetTime();
 
 		const Real spin = msg->getArgument(1)->real;
-		const Real zoom = -spin * View::ZoomHeightPerSecond;
+		Real zoom = -spin * View::ZoomHeightPerSecond;
+#if defined(GENERALS_ONLINE) && defined(GENERALS_ONLINE_FRIENDS_EDITION)
+		// the zoom range is much larger: above the official maximum, step proportionally to the height
+		zoom *= clamp(1.0f, TheTacticalView->getHeightAboveGround() / (Real)GENERALS_ONLINE_MAX_LOBBY_CAMERA_ZOOM,
+			(Real)GENERALS_ONLINE_FRIENDS_CAMERA_ZOOM_FACTOR);
+#endif
 		TheTacticalView->userZoom(zoom);
 
 		break;
