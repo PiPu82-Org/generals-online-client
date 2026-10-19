@@ -70,6 +70,7 @@ private:
 
 private:
 	CURL* m_pCURL = nullptr;
+	char m_szCurlError[CURL_ERROR_SIZE] = {}; // detailed curl error text (e.g. why TLS verification failed)
 
 	int m_responseCode = -1;
 

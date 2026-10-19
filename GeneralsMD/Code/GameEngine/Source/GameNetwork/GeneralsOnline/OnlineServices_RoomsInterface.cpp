@@ -206,10 +206,13 @@ void WebSocket::Connect(const char* url, bool bIsReconnect, std::function<void(v
 		curl_easy_setopt(m_pCurlWS, CURLOPT_VERBOSE, 1L);
 #else
         // Use the OS cert store (needed since we build curl against OpenSSL, not schannel).
-        curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
         if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
         {
             ApplySelfHostedServerCARoots(m_pCurlWS);
+        }
+        else
+        {
+            curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
         }
         curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_VERIFYPEER, 1L);
         curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_VERIFYHOST, 2L);

@@ -17,6 +17,7 @@ HTTPRequest::HTTPRequest(EHTTPVerb httpVerb, EIPProtocolVersion protover, const 
 	std::function<void(size_t bytesReceived)> progressCallback /*= nullptr*/, int timeoutMS/*= -1*/) noexcept
 {	
 	m_pCURL = curl_easy_init();
+	curl_easy_setopt(m_pCURL, CURLOPT_ERRORBUFFER, m_szCurlError);
 
 	// -1 means use default
 	if (timeoutMS > 0)
@@ -201,6 +202,10 @@ void HTTPRequest::Threaded_SetComplete(CURLcode result)
 
 	std::string strResponse = std::string(reinterpret_cast<const char*>(m_vecBuffer.data()), m_currentBufSize_Used);
 	NetworkLog(ELogVerbosity::LOG_RELEASE, "[%p|%s|Verb %d] Transfer is complete: %d bytes total! Curl result is %d", this, strURIRedacted.c_str(), m_httpVerb, m_currentBufSize_Used, result);
+	if (result != CURLE_OK)
+	{
+		NetworkLog(ELogVerbosity::LOG_RELEASE, "[%p] Curl error: %s (%s)", this, curl_easy_strerror((CURLcode)result), m_szCurlError[0] != '\0' ? m_szCurlError : "-");
+	}
 
 	// if we got an error, set the response code to 0
 
@@ -322,10 +327,13 @@ void HTTPRequest::PlatformStartRequest()
 #else
 
 		// Use the OS cert store (needed since we build curl against OpenSSL, not schannel).
-		curl_easy_setopt(m_pCURL, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
 		if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
 		{
 			ApplySelfHostedServerCARoots(m_pCURL);
+		}
+		else
+		{
+			curl_easy_setopt(m_pCURL, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
 		}
 		curl_easy_setopt(m_pCURL, CURLOPT_SSL_VERIFYPEER, 1L);
 		curl_easy_setopt(m_pCURL, CURLOPT_SSL_VERIFYHOST, 2L);

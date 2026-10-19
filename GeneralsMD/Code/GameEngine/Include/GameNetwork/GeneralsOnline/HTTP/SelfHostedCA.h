@@ -1,11 +1,13 @@
 #pragma once
 
 #include <curl/curl.h>
+#include "GameNetwork/GeneralsOnline/NGMP_include.h"
 
 // Self-hosted servers (friends edition) usually use Let's Encrypt certificates, e.g. the short-lived IP certificates.
 // curl is built against OpenSSL and only sees the roots that are already in the local Windows store; Windows fetches
 // roots on demand and many PCs never needed ISRG Root X1 (browsers bring their own store) -> curl error 60.
-// So the Let's Encrypt roots are added here, in addition to the Windows store (CURLSSLOPT_NATIVE_CA).
+// So a self-hosted server is verified against the Let's Encrypt roots only (no CURLSSLOPT_NATIVE_CA: with OpenSSL on
+// Windows the native store did not combine with CURLOPT_CAINFO_BLOB in practice -> still curl error 60).
 //   ISRG Root X1  SHA256 96:BC:EC:06:26:49:76:F3:74:60:77:9A:CF:28:C5:A7:CF:E8:A3:C0:AA:E1:1A:8F:FC:EE:05:C0:BD:DF:08:C6
 //   ISRG Root X2  SHA256 69:72:9B:8E:15:A8:6E:FC:17:7A:57:AF:B7:17:1D:FC:64:AD:D2:8C:2F:CA:8C:F1:50:7E:34:45:3C:CB:14:70
 inline void ApplySelfHostedServerCARoots(CURL* pCurl)
@@ -61,5 +63,12 @@ tL4ndQavEi51mI38AjEAi/V3bNTIZargCyzuFJ0nN6T5U6VR5CmD1/iQMVtCnwr1
 	blob.data = (void*)kLetsEncryptRoots;
 	blob.len = sizeof(kLetsEncryptRoots) - 1;
 	blob.flags = CURL_BLOB_COPY;
-	curl_easy_setopt(pCurl, CURLOPT_CAINFO_BLOB, &blob);
+	const CURLcode res = curl_easy_setopt(pCurl, CURLOPT_CAINFO_BLOB, &blob);
+
+	static bool s_bLogged = false;
+	if (!s_bLogged)
+	{
+		s_bLogged = true;
+		NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] Self-hosted server: Let's Encrypt roots (%s), %s", curl_easy_strerror(res), curl_version());
+	}
 }
