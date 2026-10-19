@@ -20,6 +20,7 @@ public:
 	float Camera_GetMaxHeight_WhenLobbyHost() const { return m_Camera_MaxHeight_LobbyHost; }
 
 	float DetermineCameraMaxHeight();
+	void LoadServerFile(const std::string& strPath);
 
 	void Graphics_SetFPS(int fpsLimit, bool bLimitFramerate)
 	{

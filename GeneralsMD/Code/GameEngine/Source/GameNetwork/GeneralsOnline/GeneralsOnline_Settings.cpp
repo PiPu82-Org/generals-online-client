@@ -3,6 +3,8 @@
 #include "../json.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cstring>
+#include <fstream>
 #include "../OnlineServices_LobbyInterface.h"
 #include "../OnlineServices_Init.h"
 
@@ -50,6 +52,7 @@
 
 #define SETTINGS_FILENAME_LEGACY "GeneralsOnline_settings.json"
 #define SETTINGS_FILENAME "settings.json"
+#define SERVER_FILENAME "Server.ini" // friends edition: server address next to the game exe
 
 GenOnlineSettings::GenOnlineSettings()
 {
@@ -101,6 +104,94 @@ std::string GenOnlineSettings::GetAnticheatPlugin() const
     }
 
     return m_Plugins_Anticheat;
+}
+
+static bool IsValidServerHost(const std::string& strHost)
+{
+	// host name or IP (optionally with :port) only, it is put into URLs
+	return !strHost.empty() && std::all_of(strHost.begin(), strHost.end(), [](unsigned char c) { return std::isalnum(c) || c == '.' || c == '-' || c == ':'; });
+}
+
+// Reads Server.ini from the game directory, e.g.
+//   Adresse = 192.168.178.172:9101
+//   HTTPS = nein
+// Without an HTTPS line, a host with a port or a plain IP uses HTTP, a domain name uses HTTPS.
+void GenOnlineSettings::LoadServerFile(const std::string& strPath)
+{
+	std::ifstream file(strPath);
+	if (!file)
+	{
+		return;
+	}
+
+	auto trim = [](std::string s)
+	{
+		const char* ws = " \t\r\n\"";
+		s.erase(0, s.find_first_not_of(ws));
+		s.erase(s.find_last_not_of(ws) + 1);
+		return s;
+	};
+
+	std::string strHost;
+	int iTLS = -1; // -1 = automatic
+	std::string line;
+	while (std::getline(file, line))
+	{
+		line = trim(line);
+		if (line.empty() || line[0] == ';' || line[0] == '#' || line[0] == '[')
+		{
+			continue;
+		}
+
+		const size_t eq = line.find('=');
+		if (eq == std::string::npos)
+		{
+			continue;
+		}
+
+		std::string key = trim(line.substr(0, eq));
+		std::string value = trim(line.substr(eq + 1));
+		std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+
+		if (key == "adresse" || key == "address" || key == "server")
+		{
+			// tolerate a pasted URL
+			for (const char* prefix : { "http://", "https://" })
+			{
+				if (value.rfind(prefix, 0) == 0)
+				{
+					value = value.substr(strlen(prefix));
+				}
+			}
+			while (!value.empty() && value.back() == '/')
+			{
+				value.pop_back();
+			}
+			strHost = value;
+		}
+		else if (key == "https" || key == "tls")
+		{
+			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+			iTLS = (value == "ja" || value == "yes" || value == "true" || value == "1") ? 1 : 0;
+		}
+	}
+
+	if (!IsValidServerHost(strHost))
+	{
+		NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] %s: no valid server address, ignored", SERVER_FILENAME);
+		return;
+	}
+
+	if (iTLS < 0)
+	{
+		const std::string strName = strHost.substr(0, strHost.find(':'));
+		const bool bIsIP = std::all_of(strName.begin(), strName.end(), [](unsigned char c) { return std::isdigit(c) || c == '.'; });
+		iTLS = (strHost.find(':') != std::string::npos || bIsIP) ? 0 : 1;
+	}
+
+	m_Network_ServerHost = strHost;
+	m_Network_ServerUseTLS = iTLS == 1;
+	NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] %s: server %s (%s)", SERVER_FILENAME, strHost.c_str(), m_Network_ServerUseTLS ? "https" : "http");
 }
 
 void GenOnlineSettings::Load(void)
@@ -272,8 +363,7 @@ void GenOnlineSettings::Load(void)
                 if (networkSettings.contains(SETTINGS_KEY_NETWORK_SERVER_HOST) && networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST].is_string())
                 {
                     const std::string strHost = networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST];
-                    // host name (optionally with :port) only, it is put into URLs
-                    if (std::all_of(strHost.begin(), strHost.end(), [](unsigned char c) { return std::isalnum(c) || c == '.' || c == '-' || c == ':'; }))
+                    if (IsValidServerHost(strHost))
                     {
                         m_Network_ServerHost = strHost;
                     }
@@ -400,6 +490,9 @@ void GenOnlineSettings::Load(void)
         m_Social_Notification_FriendGoesOffline_Gameplay = true;
 	}
 	
+	// Server.ini next to the exe wins over settings.json (simple to edit for friends)
+	LoadServerFile(std::format("{}/{}", GameDir, SERVER_FILENAME));
+
 	if (bReadFailed)
 	{
 		// keep the file on disk, the defaults above only apply to this session
