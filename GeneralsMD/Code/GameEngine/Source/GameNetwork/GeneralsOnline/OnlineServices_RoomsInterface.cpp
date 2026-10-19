@@ -7,6 +7,7 @@
 #include "GameNetwork/GeneralsOnline/json.hpp"
 #include "../OnlineServices_Init.h"
 #include "../HTTP/HTTPManager.h"
+#include "GameNetwork/GeneralsOnline/HTTP/SelfHostedCA.h"
 #include "GameNetwork/GameSpy/PeerDefs.h"
 
 // one clock for every websocket timestamp; utc_clock also loads the time zone database on MSVC
@@ -206,6 +207,10 @@ void WebSocket::Connect(const char* url, bool bIsReconnect, std::function<void(v
 #else
         // Use the OS cert store (needed since we build curl against OpenSSL, not schannel).
         curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+        if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+        {
+            ApplySelfHostedServerCARoots(m_pCurlWS);
+        }
         curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_VERIFYPEER, 1L);
         curl_easy_setopt(m_pCurlWS, CURLOPT_SSL_VERIFYHOST, 2L);
 #endif
