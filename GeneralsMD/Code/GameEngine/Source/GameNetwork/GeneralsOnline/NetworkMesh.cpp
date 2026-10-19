@@ -11,6 +11,19 @@
 #include "../HTTP/HTTPManager.h"
 #include "../OnlineServices_Init.h"
 #include <steam/isteamnetworkingutils.h>
+#include <algorithm>
+
+// The TURN user/pass lists must have one entry per TURN server, otherwise the ICE client
+// ignores the relay (self-hosted servers have one TURN server, the official service two).
+static std::string RepeatForTurnServers(const std::string& strTurnServerList, const std::string& strValue)
+{
+	std::string strResult = strValue;
+	for (size_t i = 0; i < (size_t)std::count(strTurnServerList.begin(), strTurnServerList.end(), ','); ++i)
+	{
+		strResult += "," + strValue;
+	}
+	return strResult;
+}
 #include <steam/steamnetworkingcustomsignaling.h>
 #include "../PluginInterfaces.h"
 #include <steam/isteamnetworkingsockets.h>
@@ -717,8 +730,8 @@ NetworkMesh::NetworkMesh()
 
 	m_strTurnUsername = pLobbyInterface->GetLobbyTurnUsername();
 	m_strTurnToken = pLobbyInterface->GetLobbyTurnToken();
-	m_strTurnUsernameString = std::format("{},{}", m_strTurnUsername.c_str(), m_strTurnUsername.c_str());
-	m_strTurnTokenString = std::format("{},{}", m_strTurnToken.c_str(), m_strTurnToken.c_str());
+	m_strTurnUsernameString = RepeatForTurnServers(m_strTurnServerList, m_strTurnUsername);
+	m_strTurnTokenString = RepeatForTurnServers(m_strTurnServerList, m_strTurnToken);
 
 	ServiceConfig& serviceConf = pOnlineServicesMgr->GetServiceConfig();
 	m_iceEnable = (g_bForceRelay || serviceConf.relay_all_traffic)
@@ -1039,8 +1052,8 @@ void NetworkMesh::SetTurnCredentials(const std::string& strUsername, const std::
 
 		m_strTurnUsername = strUsername;
 		m_strTurnToken = strToken;
-		m_strTurnUsernameString = std::format("{},{}", m_strTurnUsername.c_str(), m_strTurnUsername.c_str());
-		m_strTurnTokenString = std::format("{},{}", m_strTurnToken.c_str(), m_strTurnToken.c_str());
+		m_strTurnUsernameString = RepeatForTurnServers(m_strTurnServerList, m_strTurnUsername);
+		m_strTurnTokenString = RepeatForTurnServers(m_strTurnServerList, m_strTurnToken);
 
 		// incoming connections use the listen socket's TURN settings
 		if (m_hListenSock != k_HSteamListenSocket_Invalid)
