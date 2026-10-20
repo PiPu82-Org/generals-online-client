@@ -40,6 +40,12 @@ if(GENERALS_ONLINE_SERVER_HOST)
     # friends edition: larger starting money choices, wider camera zoom (see NextGenMP_defines.h)
     add_compile_definitions(GENERALS_ONLINE_FRIENDS_EDITION=1)
 endif()
+# Terrain tiles with 128 instead of 64 pixels per cell and a 32 bit terrain texture. High resolution
+# terrain files are read from Art/TerrainHD, all other terrain files are enlarged while loading.
+option(GENERALS_ONLINE_TERRAIN_HD "Terrain with twice the texture resolution (Art/TerrainHD)" ON)
+if(GENERALS_ONLINE_TERRAIN_HD)
+    add_compile_definitions(GENERALS_ONLINE_TERRAIN_HD=1)
+endif()
 option(GENERALS_ONLINE_LARGE_ADDRESS_AWARE "Link the game with /LARGEADDRESSAWARE (4 GB address space on 64-bit Windows)" OFF)
 
 # This file handles extra settings wanted/needed for different compilers.

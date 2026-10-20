@@ -45,17 +45,29 @@ typedef struct {
 
 #define INVERTED_MASK	0x1		//AND this with TBlendTileInfo.inverted to get actual inverted state
 #define FLIPPED_MASK	0x2		//AND this with TBlendTileInfo.inverted to get forced flip state (for horizontal/vertical flips).
-#define TILE_PIXEL_EXTENT 64
+#if defined(GENERALS_ONLINE_TERRAIN_HD)
+// Terrain HD: every terrain tile has twice the resolution. Everything measured in pixels of the
+// terrain texture (tile size, tile border, texture width) doubles, so all texture coordinates,
+// including the ones stored in map files, stay the same.
+#define TERRAIN_TILE_SCALE 2
+#define TERRAIN_HD_TGA_DIR_PATH "Art/TerrainHD/"	///< optional high resolution terrain .tga files (2x)
+#else
+#define TERRAIN_TILE_SCALE 1
+#endif
+#define TILE_PIXEL_EXTENT (64*TERRAIN_TILE_SCALE)
 #define TILE_BYTES_PER_PIXEL 4
 #define DATA_LEN_BYTES TILE_PIXEL_EXTENT*TILE_PIXEL_EXTENT*TILE_BYTES_PER_PIXEL
 #define DATA_LEN_PIXELS TILE_PIXEL_EXTENT*TILE_PIXEL_EXTENT
-#define TILE_PIXEL_EXTENT_MIP1 32
-#define TILE_PIXEL_EXTENT_MIP2 16
-#define TILE_PIXEL_EXTENT_MIP3 8
-#define TILE_PIXEL_EXTENT_MIP4 4
-#define TILE_PIXEL_EXTENT_MIP5 2
-#define TILE_PIXEL_EXTENT_MIP6 1
-#define TEXTURE_WIDTH 2048 // was 1024 jba
+#define TILE_PIXEL_EXTENT_MIP1 (TILE_PIXEL_EXTENT/2)
+#define TILE_PIXEL_EXTENT_MIP2 (TILE_PIXEL_EXTENT/4)
+#define TILE_PIXEL_EXTENT_MIP3 (TILE_PIXEL_EXTENT/8)
+#define TILE_PIXEL_EXTENT_MIP4 (TILE_PIXEL_EXTENT/16)
+#define TILE_PIXEL_EXTENT_MIP5 (TILE_PIXEL_EXTENT/32)
+#define TILE_PIXEL_EXTENT_MIP6 (TILE_PIXEL_EXTENT/64)
+#if TERRAIN_TILE_SCALE > 1
+#define TILE_PIXEL_EXTENT_MIP7 (TILE_PIXEL_EXTENT/128)
+#endif
+#define TEXTURE_WIDTH (2048*TERRAIN_TILE_SCALE) // was 1024 jba
 
 /** This class holds the bitmap data from the .tga texture files.  It is used to
 create the D3D texture in the game and 3d windows, and to create DIB data for the
@@ -75,6 +87,11 @@ protected:
 	UnsignedByte m_tileDataMip4[TILE_PIXEL_EXTENT_MIP4*TILE_PIXEL_EXTENT_MIP4*TILE_BYTES_PER_PIXEL];
 	UnsignedByte m_tileDataMip2[TILE_PIXEL_EXTENT_MIP5*TILE_PIXEL_EXTENT_MIP5*TILE_BYTES_PER_PIXEL];
 	UnsignedByte m_tileDataMip1[TILE_PIXEL_EXTENT_MIP6*TILE_PIXEL_EXTENT_MIP6*TILE_BYTES_PER_PIXEL];
+#if TERRAIN_TILE_SCALE > 1
+	// With HD tiles the member names above are one level off (m_tileDataMip32 holds 64x64 and so on);
+	// this is the extra 1x1 level.
+	UnsignedByte m_tileDataMip7[TILE_PIXEL_EXTENT_MIP7*TILE_PIXEL_EXTENT_MIP7*TILE_BYTES_PER_PIXEL];
+#endif
 
 public:
 	ICoord2D	m_tileLocationInTexture;

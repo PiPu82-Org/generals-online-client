@@ -434,7 +434,7 @@ public:
 void W3DTreeBuffer::updateTexture()
 {
 
-	const Int MAX_TEX_WIDTH = 2048;
+	const Int MAX_TEX_WIDTH = 2048 * TERRAIN_TILE_SCALE;
 
 	Int i, j;
 	Int maxHeight = 0;
@@ -458,8 +458,20 @@ void W3DTreeBuffer::updateTexture()
 	for (i = 0; i < m_numTreeTypes; i++) {
 		char texturePath[_MAX_PATH];
 		m_treeTypes[i].m_numTiles = 0;
-		snprintf(texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_TGA_DIR_PATH, m_treeTypes[i].m_data->m_textureName.str());
+		// original files have to be enlarged when the tiles have a higher resolution
+		Int scale = TERRAIN_TILE_SCALE;
+		theFile = nullptr;
+#if TERRAIN_TILE_SCALE > 1
+		snprintf(texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_HD_TGA_DIR_PATH, m_treeTypes[i].m_data->m_textureName.str());
 		theFile = TheFileSystem->openFile(texturePath, File::READ | File::BINARY);
+		if (theFile != nullptr) {
+			scale = 1;
+		}
+#endif
+		if (theFile == nullptr) {
+			snprintf(texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_TGA_DIR_PATH, m_treeTypes[i].m_data->m_textureName.str());
+			theFile = TheFileSystem->openFile(texturePath, File::READ | File::BINARY);
+		}
 		if (theFile == nullptr) {
 			snprintf(texturePath, ARRAY_SIZE(texturePath), "%s%s", TGA_DIR_PATH, m_treeTypes[i].m_data->m_textureName.str());
 			theFile = TheFileSystem->openFile(texturePath, File::READ | File::BINARY);
@@ -468,7 +480,7 @@ void W3DTreeBuffer::updateTexture()
 			GDIFileStream2 theStream(theFile);
 			InputStream* pStr = &theStream;
 			Bool halfTile;
-			Int numTiles = WorldHeightMap::countTiles(pStr, &halfTile);
+			Int numTiles = WorldHeightMap::countTiles(pStr, &halfTile, scale);
 			Int width;
 			for (width = 10; width >= 1; width--) {
 				if (numTiles >= width * width) {
@@ -496,7 +508,7 @@ void W3DTreeBuffer::updateTexture()
 				m_treeTypes[i].m_tileWidth = width;
 				m_treeTypes[i].m_numTiles = numTiles;
 				m_treeTypes[i].m_halfTile = halfTile;
-				WorldHeightMap::readTiles(pStr, m_sourceTiles + m_treeTypes[i].m_firstTile, width);
+				WorldHeightMap::readTiles(pStr, m_sourceTiles + m_treeTypes[i].m_firstTile, width, scale, true, false);
 				m_numTiles += numTiles;
 			}
 			else {

@@ -68,8 +68,15 @@
 texture of the desired height and mip level. */
 //=============================================================================
 TerrainTextureClass::TerrainTextureClass(int height) :
+#if TERRAIN_TILE_SCALE > 1
+	// HD tiles: 32 bit instead of 16 bit color, and one more mip level so the smallest level
+	// still has the same number of pixels per tile as before.
+	TextureClass(TEXTURE_WIDTH, height,
+		WW3D_FORMAT_A8R8G8B8, MIP_LEVELS_4 )
+#else
 	TextureClass(TEXTURE_WIDTH, height,
 		WW3D_FORMAT_A1R5G5B5, MIP_LEVELS_3 )
+#endif
 {
 }
 
@@ -117,18 +124,10 @@ int TerrainTextureClass::update(WorldHeightMap *htMap)
 	//DEBUG_ASSERTCRASH(tilesPerRow*numRows >= htMap->m_numBitmapTiles, ("Too many tiles."));
 	DEBUG_ASSERTCRASH((Int)surface_desc.Width >= tilePixelExtent*tilesPerRow, ("Bitmap too small."));
 #endif
-	if (surface_desc.Format == D3DFMT_A1R5G5B5) {
-#if 0
-		UnsignedInt cellX, cellY;
-		for (cellX = 0; cellX < surface_desc.Width; cellX++) {
-			for (cellY = 0; cellY < surface_desc.Height; cellY++) {
-				UnsignedByte *pBGR = ((UnsignedByte *)locked_rect.pBits)+(cellY*surface_desc.Width+cellX)*2;
-				*((Short*)pBGR) = (((255-2*cellY)>>3)<<10) + ((4*cellX)>>4);
-			}
-		}
-#endif
+	const Bool is32Bit = (surface_desc.Format == D3DFMT_A8R8G8B8 || surface_desc.Format == D3DFMT_X8R8G8B8);
+	if (surface_desc.Format == D3DFMT_A1R5G5B5 || is32Bit) {
 		Int tileNdx;
-		Int pixelBytes = 2;
+		Int pixelBytes = is32Bit ? 4 : 2;
 		for (tileNdx=0; tileNdx < htMap->m_numBitmapTiles; tileNdx++) {
 			TileData *pTile = htMap->getSourceTile(tileNdx);
 			if (!pTile) continue;
@@ -146,20 +145,28 @@ int TerrainTextureClass::update(WorldHeightMap *htMap)
 				Int column = position.x;
 				pBGRX += column*pixelBytes;
 				for (i=0; i<tilePixelExtent; i++) {
-					*((Short*)pBGRX) = 0x8000 + ((pBGR[2]>>3)<<10) + ((pBGR[1]>>3)<<5) + (pBGR[0]>>3);
+					if (is32Bit) {
+						pBGRX[0] = pBGR[0];
+						pBGRX[1] = pBGR[1];
+						pBGRX[2] = pBGR[2];
+						pBGRX[3] = 0xff;
+					} else {
+						*((Short*)pBGRX) = 0x8000 + ((pBGR[2]>>3)<<10) + ((pBGR[1]>>3)<<5) + (pBGR[0]>>3);
+					}
 					pBGRX +=pixelBytes;
 					pBGR +=TILE_BYTES_PER_PIXEL;
 				}
 			}
 		}
-		// Now draw the 4 pixel border around each tile class.
+		// Now draw the border (half of TILE_OFFSET, 4 pixels for normal tiles) around each tile class.
+		const Int border = TILE_OFFSET/2;
 		Int texClass;
 		for (texClass=0; texClass<htMap->m_numTextureClasses; texClass++) {
 			Int width = htMap->m_textureClasses[texClass].width;
 			ICoord2D origin = htMap->m_textureClasses[texClass].positionInTexture;
 			if (origin.x<=0) continue;
 			width *= TILE_PIXEL_EXTENT;
-			// Duplicate 4 columns of pixels before and after.
+			// Duplicate the border columns of pixels before and after.
 			Int j;
 			for (j=0; j<width; j++) {
 				Int row = origin.y+j;
@@ -169,25 +176,25 @@ int TerrainTextureClass::update(WorldHeightMap *htMap)
 				Int column = origin.x;
 				pBGRX += column*pixelBytes;
 				// copy before
-				memcpy(pBGRX-(4)*pixelBytes, pBGRX+(width-4)*pixelBytes, 4*pixelBytes);
+				memcpy(pBGRX-(border)*pixelBytes, pBGRX+(width-border)*pixelBytes, border*pixelBytes);
 				// copy after
-				memcpy(pBGRX+(width*pixelBytes), pBGRX, 4*pixelBytes);
+				memcpy(pBGRX+(width*pixelBytes), pBGRX, border*pixelBytes);
 			}
 
-			// Duplicate 4 rows of pixels before and after.
-			for (j=0; j<4; j++) {
+			// Duplicate the border rows of pixels before and after.
+			for (j=0; j<border; j++) {
 				// copy before.
 				Int row = origin.y-j-1;
 				UnsignedByte *pBGRX = ((UnsignedByte*)locked_rect.pBits) +
 							(row)*surface_desc.Width*pixelBytes;
-				UnsignedByte *target = pBGRX+(origin.x-4)*pixelBytes;
-				memcpy(target, target+width*surface_desc.Width*pixelBytes, (width+8)*pixelBytes);
+				UnsignedByte *target = pBGRX+(origin.x-border)*pixelBytes;
+				memcpy(target, target+width*surface_desc.Width*pixelBytes, (width+2*border)*pixelBytes);
 				// copy after.
 				row = origin.y+j;
 				pBGRX = ((UnsignedByte*)locked_rect.pBits) +
 							(row)*surface_desc.Width*pixelBytes;
-				target = pBGRX+(origin.x-4)*pixelBytes;
-				memcpy(target+width*surface_desc.Width*pixelBytes, target, (width+8)*pixelBytes);
+				target = pBGRX+(origin.x-border)*pixelBytes;
+				memcpy(target+width*surface_desc.Width*pixelBytes, target, (width+2*border)*pixelBytes);
 			}
 
 		}

@@ -33,9 +33,10 @@
 #include "WW3D2/texture.h"
 #include "WWMath/matrix3d.h"
 #include "Common/AsciiString.h"
+#include "W3DDevice/GameClient/TileData.h"
 
 class WorldHeightMap;
-#define TILE_OFFSET 8
+#define TILE_OFFSET (8*TERRAIN_TILE_SCALE)	///< space between tile classes in the terrain texture, half of it is a copied border
 /** ***********************************************************************
 **                             TerrainTextureClass
 ***************************************************************************/

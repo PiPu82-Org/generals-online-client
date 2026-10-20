@@ -207,7 +207,7 @@ protected:
 	void getUVForNdx(Int ndx, float *minU, float *minV, float *maxU, float*maxV);
 	Bool getUVForTileIndex(Int ndx, Short tileNdx, float U[4], float V[4]);
 	Int getTextureClassFromNdx(Int tileNdx);
-	void readTexClass(TXTextureClass *texClass, TileData **tileData);
+	void readTexClass(TXTextureClass *texClass, TileData **tileData, Bool isEdgeClass = false);
 	Int updateTileTexturePositions(Int *edgeHeight); ///< Places each tile in the texture.
 	void initCliffFlagsFromHeights();
 	void setCellCliffFlagFromHeights(Int xIndex, Int yIndex);
@@ -330,8 +330,9 @@ public:  // modify height value
 		if ((ndx>=0) && (ndx<m_dataSize) && m_data) m_data[ndx]=height;
 	};
 public: // Read tile utilities. jba [7/9/2003]
-	static Bool readTiles(InputStream *pStrm, TileData **tiles, Int numRows);
-	static Int countTiles(InputStream *pStrm, Bool *halfTile=nullptr);
+	/// scale > 1 enlarges the image while reading (smooth: bilinear, else nearest pixel; wrap: the image tiles seamlessly)
+	static Bool readTiles(InputStream *pStrm, TileData **tiles, Int numRows, Int scale=1, Bool smooth=true, Bool wrap=true);
+	static Int countTiles(InputStream *pStrm, Bool *halfTile=nullptr, Int scale=1);
 
 protected:
 	void setCliffState(Int xIndex, Int yIndex, Bool state);

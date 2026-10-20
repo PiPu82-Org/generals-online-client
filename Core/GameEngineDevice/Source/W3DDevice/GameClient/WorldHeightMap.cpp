@@ -30,6 +30,8 @@
 
 #include "windows.h"
 #include "stdlib.h"
+#include <vector>
+#include <math.h>
 #include "Common/STLTypedefs.h"
 
 #include "Common/DataChunk.h"
@@ -980,11 +982,13 @@ Bool WorldHeightMap::ParseBlendTileDataChunk(DataChunkInput &file, DataChunkInfo
 }
 
 /** Function to read in the tiles for a texture class. */
-void WorldHeightMap::readTexClass(TXTextureClass *texClass, TileData **tileData)
+void WorldHeightMap::readTexClass(TXTextureClass *texClass, TileData **tileData, Bool isEdgeClass)
 {
 	char path[_MAX_PATH];
 	path[0] = 0;
 	File *theFile = nullptr;
+	// original terrain files have to be enlarged when the tiles have a higher resolution
+	Int scale = TERRAIN_TILE_SCALE;
 
 	// get the file from the description in TheTerrainTypes
 	TerrainType *terrain = TheTerrainTypes->findTerrain( texClass->name );
@@ -997,14 +1001,40 @@ void WorldHeightMap::readTexClass(TXTextureClass *texClass, TileData **tileData)
 	}
 	else
 	{
-		snprintf( texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_TGA_DIR_PATH, terrain->getTexture().str() );
-		theFile = TheFileSystem->openFile( texturePath, File::READ|File::BINARY);
+#if TERRAIN_TILE_SCALE > 1
+		// Use the high resolution file if there is one with enough tiles. Edge textures are masks
+		// with exact colors, they always come from the original files.
+		if (!isEdgeClass)
+		{
+			snprintf( texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_HD_TGA_DIR_PATH, terrain->getTexture().str() );
+			theFile = TheFileSystem->openFile( texturePath, File::READ|File::BINARY);
+			if (theFile != nullptr)
+			{
+				GDIFileStream hdStream(theFile);
+				if (WorldHeightMap::countTiles(&hdStream) >= texClass->numTiles)
+				{
+					scale = 1;
+					theFile->seek(0, File::START);
+				}
+				else
+				{
+					theFile->close();
+					theFile = nullptr;
+				}
+			}
+		}
+		if (theFile == nullptr)
+#endif
+		{
+			snprintf( texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_TGA_DIR_PATH, terrain->getTexture().str() );
+			theFile = TheFileSystem->openFile( texturePath, File::READ|File::BINARY);
+		}
 	}
 
 	if (theFile != nullptr) {
 		GDIFileStream theStream(theFile);
 		InputStream *pStr = &theStream;
-		Int numTiles = WorldHeightMap::countTiles(pStr);
+		Int numTiles = WorldHeightMap::countTiles(pStr, nullptr, scale);
 		theFile->seek(0, File::START);
 		if (numTiles >= texClass->numTiles) {
 			numTiles = texClass->numTiles;
@@ -1015,7 +1045,8 @@ void WorldHeightMap::readTexClass(TXTextureClass *texClass, TileData **tileData)
 					break;
 				}
 			}
-			WorldHeightMap::readTiles(pStr, tileData+texClass->firstTile, width);
+			// terrain textures tile seamlessly; edge masks need exact colors, so no smoothing
+			WorldHeightMap::readTiles(pStr, tileData+texClass->firstTile, width, scale, !isEdgeClass, true);
 		}
 		theFile->close();
 	}
@@ -1116,7 +1147,7 @@ Bool WorldHeightMap::ParseBlendTileData(DataChunkInput &file, DataChunkInfo *inf
 			m_edgeTextureClasses[i].numTiles = file.readInt();
 			m_edgeTextureClasses[i].width = file.readInt();
 			m_edgeTextureClasses[i].name = file.readAsciiString();
-			readTexClass(&m_edgeTextureClasses[i], m_edgeTiles);
+			readTexClass(&m_edgeTextureClasses[i], m_edgeTiles, true);
 		}
 	}
 	for (i=1; i<m_numBlendedTiles; i++) {
@@ -1295,7 +1326,7 @@ typedef struct {
 
 
 /// Count how many tiles come in from a targa file.
-Int WorldHeightMap::countTiles(InputStream *pStr, Bool *halfTile)
+Int WorldHeightMap::countTiles(InputStream *pStr, Bool *halfTile, Int scale)
 {
 	TTargaHeader hdr;
 	if (halfTile) {
@@ -1303,8 +1334,10 @@ Int WorldHeightMap::countTiles(InputStream *pStr, Bool *halfTile)
 	}
 	Int len = pStr->read(&hdr,sizeof(hdr));
 	if (len!=sizeof(hdr)) return(0);
-	Int tileWidth = hdr.imageWidth/TILE_PIXEL_EXTENT;
-	Int tileHeight = hdr.imageHeight/TILE_PIXEL_EXTENT;
+	const Int imageWidth = hdr.imageWidth*scale;
+	const Int imageHeight = hdr.imageHeight*scale;
+	Int tileWidth = imageWidth/TILE_PIXEL_EXTENT;
+	Int tileHeight = imageHeight/TILE_PIXEL_EXTENT;
 
 	if (hdr.colorMapType != 0) {
 		return(0); // we don't do indexed at this time. jba.
@@ -1330,17 +1363,142 @@ Int WorldHeightMap::countTiles(InputStream *pStr, Bool *halfTile)
 	if (tileWidth>=3 && tileHeight >=3) return(9);
 	if (tileWidth>=2 && tileHeight >=2) return(4);
 	if (tileWidth>=1 && tileHeight >=1) return(1);
-	if (halfTile && hdr.imageHeight==TILE_PIXEL_EXTENT/2 && hdr.imageWidth==TILE_PIXEL_EXTENT/2) {
+	if (halfTile && imageHeight==TILE_PIXEL_EXTENT/2 && imageWidth==TILE_PIXEL_EXTENT/2) {
 		*halfTile = true;
 		return 1;
 	}
 	return(0);
 }
+/** Like readTiles, but the image is enlarged by scale while it is broken down into tiles.
+	The whole image is decoded first, so every tile pixel can be interpolated from its neighbors.
+	wrap: the image repeats seamlessly (terrain), else the border pixels are repeated (trees). */
+static Bool readTilesScaled(InputStream *pStr, const TTargaHeader &hdr, TileData **tiles, Int numRows,
+	Int scale, Bool smooth, Bool wrap)
+{
+	const Int srcWidth = hdr.imageWidth;
+	const Int srcHeight = hdr.imageHeight;
+	const Int scaledWidth = srcWidth*scale;
+	const Int scaledHeight = srcHeight*scale;
+	Int tileWidth = scaledWidth/TILE_PIXEL_EXTENT;
+	Int tileHeight = scaledHeight/TILE_PIXEL_EXTENT;
+
+	if (scaledHeight==TILE_PIXEL_EXTENT/2) {
+		tileHeight = 1;
+	}
+	if (scaledWidth==TILE_PIXEL_EXTENT/2) {
+		tileWidth = 1;
+	}
+	if (srcWidth <= 0 || srcHeight <= 0) {
+		return(false);
+	}
+	if (tileWidth<numRows && tileHeight<numRows) {
+		return(false);
+	}
+	const Bool compressed = (hdr.imageType & 0x08) != 0;
+	const Int bytesPerPixel = (hdr.pixelDepth+7)/8;
+	if (bytesPerPixel < 3) return(false);
+	if (bytesPerPixel > 4) return(false);
+
+	// decode the image, 4 bytes per pixel in the order b g r a (like the tile data)
+	std::vector<UnsignedByte> image(srcWidth*srcHeight*4);
+	UnsignedByte buf[4] = {0, 0, 0, 0};
+	Int repeatCount = 0;
+	Bool running = false;
+	for (Int i = 0; i < srcWidth*srcHeight; i++) {
+		if (compressed && repeatCount==0) {
+			UnsignedByte flag;
+			pStr->read(&flag, 1);
+			repeatCount = flag&0x7f;
+			repeatCount++;
+			if (flag&0x80) {
+				running = true;
+				pStr->read(buf, bytesPerPixel);
+			} else {
+				running = false;
+			}
+		}
+		if (compressed) repeatCount--;
+		if (!running) {
+			pStr->read(buf, bytesPerPixel);
+		}
+		UnsignedByte *pixel = &image[i*4];
+		pixel[0] = buf[0];
+		pixel[1] = buf[1];
+		pixel[2] = buf[2];
+		pixel[3] = (bytesPerPixel==4) ? buf[3] : 255;
+	}
+
+	for (Int i=0; i<numRows*numRows; i++) {
+		if (tiles[i] == nullptr)
+			tiles[i] = MSGNEW("WorldHeightMap_readTiles") TileData;
+	}
+
+	const Int extent = numRows*TILE_PIXEL_EXTENT;
+	for (Int row = 0; row < extent; row++) {
+		for (Int column = 0; column < extent; column++) {
+			UnsignedByte color[4] = {0, 0, 0, 0};
+			if (row < scaledHeight && column < scaledWidth) {
+				if (smooth) {
+					// bilinear: pixel centers of the enlarged image mapped back to the source image
+					const Real fx = (column+0.5f)/scale - 0.5f;
+					const Real fy = (row+0.5f)/scale - 0.5f;
+					Int x0 = (Int)floorf(fx);
+					Int y0 = (Int)floorf(fy);
+					const Real tx = fx - x0;
+					const Real ty = fy - y0;
+					Int x1 = x0+1;
+					Int y1 = y0+1;
+					if (wrap) {
+						x0 = (x0 + srcWidth) % srcWidth;
+						x1 = x1 % srcWidth;
+						y0 = (y0 + srcHeight) % srcHeight;
+						y1 = y1 % srcHeight;
+					} else {
+						x0 = clamp(0, x0, srcWidth-1);
+						x1 = clamp(0, x1, srcWidth-1);
+						y0 = clamp(0, y0, srcHeight-1);
+						y1 = clamp(0, y1, srcHeight-1);
+					}
+					const UnsignedByte *p00 = &image[(y0*srcWidth+x0)*4];
+					const UnsignedByte *p10 = &image[(y0*srcWidth+x1)*4];
+					const UnsignedByte *p01 = &image[(y1*srcWidth+x0)*4];
+					const UnsignedByte *p11 = &image[(y1*srcWidth+x1)*4];
+					for (Int c = 0; c < 4; c++) {
+						const Real top = p00[c]*(1.0f-tx) + p10[c]*tx;
+						const Real bottom = p01[c]*(1.0f-tx) + p11[c]*tx;
+						color[c] = (UnsignedByte)(top*(1.0f-ty) + bottom*ty + 0.5f);
+					}
+				} else {
+					const UnsignedByte *p = &image[((row/scale)*srcWidth + column/scale)*4];
+					color[0] = p[0];
+					color[1] = p[1];
+					color[2] = p[2];
+					color[3] = p[3];
+				}
+			}
+			const Int tileNdx = (column/TILE_PIXEL_EXTENT) + numRows*(row/TILE_PIXEL_EXTENT);
+			const Int pixelNdx = (column%TILE_PIXEL_EXTENT) + TILE_PIXEL_EXTENT*(row%TILE_PIXEL_EXTENT);
+			UnsignedByte *pixel = tiles[tileNdx]->getDataPtr() + pixelNdx*TILE_BYTES_PER_PIXEL;
+			pixel[0] = color[0];
+			pixel[1] = color[1];
+			pixel[2] = color[2];
+			pixel[3] = color[3];
+		}
+	}
+	for (Int i=0; i<numRows*numRows; i++) {
+		tiles[i]->updateMips();
+	}
+	return(true);
+}
+
 /*Break down a .tga file into a collection of tiles.  numRows * numRows total tiles.*/
-Bool WorldHeightMap::readTiles(InputStream *pStr, TileData **tiles, Int numRows)
+Bool WorldHeightMap::readTiles(InputStream *pStr, TileData **tiles, Int numRows, Int scale, Bool smooth, Bool wrap)
 {
 	TTargaHeader hdr;
 	pStr->read(&hdr, sizeof(hdr));
+	if (scale > 1) {
+		return readTilesScaled(pStr, hdr, tiles, numRows, scale, smooth, wrap);
+	}
 	Int tileWidth = hdr.imageWidth/TILE_PIXEL_EXTENT;
 	Int tileHeight = hdr.imageHeight/TILE_PIXEL_EXTENT;
 
