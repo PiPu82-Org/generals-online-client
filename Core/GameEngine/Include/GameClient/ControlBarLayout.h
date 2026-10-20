@@ -26,6 +26,9 @@
 #pragma once
 
 #include "Lib/BaseType.h"
+#include "Common/AsciiString.h"
+
+class GameWindow;
 
 enum ControlBarLayoutMode
 {
@@ -40,6 +43,14 @@ struct ControlBarLayoutSettings
 	Real scale = 1.0f;	///< additional size factor for uniform mode, clamped to [0.5, 1.0]
 };
 
+/// Horizontal anchor of a uniformly scaled layout
+enum ControlBarAnchor
+{
+	CONTROLBAR_ANCHOR_NONE = 0,		///< not part of the control bar, original stretch scaling
+	CONTROLBAR_ANCHOR_CENTER,			///< centered horizontally (control bar, generals menu, tooltip)
+	CONTROLBAR_ANCHOR_RIGHT,			///< right screen edge (general's powers shortcut bar)
+};
+
 extern ControlBarLayoutSettings TheControlBarLayoutSettings;
 
 struct ControlBarLayout
@@ -50,4 +61,15 @@ struct ControlBarLayout
 };
 
 /// Layout for a control bar authored for the given creation resolution.
-ControlBarLayout getControlBarLayout( Real creationWidth, Real creationHeight );
+ControlBarLayout getControlBarLayout( Real creationWidth, Real creationHeight, ControlBarAnchor anchor = CONTROLBAR_ANCHOR_CENTER );
+
+/// Anchor for the windows of a WND file; CONTROLBAR_ANCHOR_NONE if the file is not part of the control bar
+ControlBarAnchor getControlBarAnchorForWindowFile( const AsciiString& filename );
+
+/// Remember the WND rect of a control bar window, so it can be placed again when the size changes
+void registerControlBarWindow( GameWindow *window, const IRegion2D& creationRect, const ICoord2D& creationRes, ControlBarAnchor anchor );
+void unregisterControlBarWindow( GameWindow *window );
+
+/// Change the size factor of the uniform control bar while the control bar exists (in game or in the shell).
+/// Places all control bar windows again and updates the control bar scheme.
+void setControlBarUserScale( Real scale );

@@ -15,7 +15,10 @@
 
 #define GENERALS_ONLINE_VERSION_STRING "100126_QFE2" // NOTE: Format is critical here for Sentry to work
 
+// The friends edition offers texture filtering and antialiasing in the advanced display options
+#if !defined(GENERALS_ONLINE_FRIENDS_EDITION)
 #define GENERALS_ONLINE_DISABLE_TEXTURE_FILTERING_AND_AA 1
+#endif
 
 #define GENERALS_ONLINE_LOBBY_MAX_PASSWORD_LENGTH 16
 

@@ -627,7 +627,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 	{
 
 		static NameKeyType winNamekey	= TheNameKeyGenerator->nameToKey( "ControlBar.wnd:BackgroundMarker" );
-		static ICoord2D lastOffset = { 0, 0 };
+		ICoord2D& lastOffset = m_buildTooltipLastOffset;	// reset when the control bar size changes
 
 		ICoord2D size, newSize, pos;
 		Int diffSize;

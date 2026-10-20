@@ -58,6 +58,7 @@
 #include "GameClient/Shell.h"
 #include "GameClient/KeyDefs.h"
 #include "GameClient/GameWindowManager.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/Mouse.h"
 #include "GameClient/GameText.h"
 #include "GameClient/Display.h"
@@ -220,6 +221,169 @@ WindowLayout *OptionsLayout = nullptr;
 
 static OptionPreferences *pref = nullptr;
 
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+// Friends edition: options without a gadget in OptionsMenu.wnd, created in code with the look of existing gadgets
+static GameWindow *		sliderControlBarScale				= nullptr;	///< size of the centered control bar, 50..100 %
+static GameWindow *		checkAnisotropicFiltering		= nullptr;	///< anisotropic 16x texture filter, next game start
+static GameWindow *		checkAntiAliasing						= nullptr;	///< 4x MSAA, next game start
+
+/// Instance data for a new gadget that looks like templateWindow from the WND file
+static void copyGadgetLook( WinInstanceData *inst, GameWindow *templateWindow, const char *name )
+{
+	const WinInstanceData *src = templateWindow->winGetInstanceData();
+
+	inst->init();
+	inst->m_style = src->m_style;
+	inst->m_status = src->m_status;
+	for( Int i = 0; i < MAX_DRAW_DATA; ++i )
+	{
+		inst->m_enabledDrawData[ i ] = src->m_enabledDrawData[ i ];
+		inst->m_disabledDrawData[ i ] = src->m_disabledDrawData[ i ];
+		inst->m_hiliteDrawData[ i ] = src->m_hiliteDrawData[ i ];
+	}
+	inst->m_enabledText = src->m_enabledText;
+	inst->m_disabledText = src->m_disabledText;
+	inst->m_hiliteText = src->m_hiliteText;
+	inst->m_imeCompositeText = src->m_imeCompositeText;
+	inst->m_imageOffset = src->m_imageOffset;
+	inst->m_font = src->m_font;
+	inst->m_tooltipDelay = src->m_tooltipDelay;
+	inst->m_id = TheNameKeyGenerator->nameToKey( name );
+	inst->m_decoratedNameString = name;
+}
+
+/// Window position relative to parent for a screen position
+static ICoord2D toParentPosition( GameWindow *parent, Int screenX, Int screenY )
+{
+	ICoord2D pos = { screenX, screenY };
+	if( parent )
+	{
+		Int parentX, parentY;
+		parent->winGetScreenPosition( &parentX, &parentY );
+		pos.x -= parentX;
+		pos.y -= parentY;
+	}
+	return pos;
+}
+
+static GameWindow *createCheckBoxLike( GameWindow *templateCheck, const char *name, Int screenX, Int screenY, const UnicodeString& text )
+{
+	GameWindow *parent = templateCheck->winGetParent();
+	ICoord2D size;
+	templateCheck->winGetSize( &size.x, &size.y );
+	const ICoord2D pos = toParentPosition( parent, screenX, screenY );
+
+	WinInstanceData inst;
+	copyGadgetLook( &inst, templateCheck, name );
+	GameWindow *check = TheWindowManager->gogoGadgetCheckbox( parent, templateCheck->winGetStatus(), pos.x, pos.y,
+		size.x, size.y, &inst, inst.m_font, FALSE );
+	if( check )
+		GadgetCheckBoxSetText( check, text );
+	return check;
+}
+
+/// "Steuerleiste" label and slider in the free space right of the retaliation check box
+static void createControlBarScaleSlider()
+{
+	sliderControlBarScale = nullptr;	// the previous one was destroyed with the previous options layout
+
+	GameWindow *labelTemplate = TheWindowManager->winGetWindowFromId( nullptr, TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:ScrollSpeedLabel" ) );
+	if( !labelTemplate || !sliderScrollSpeed || !checkRetaliation || !checkDoubleClickAttackMove )
+		return;
+
+	GameWindow *parent = checkDoubleClickAttackMove->winGetParent();
+	ICoord2D rowPos, rowSize, colPos, colSize;
+	checkRetaliation->winGetScreenPosition( &rowPos.x, &rowPos.y );
+	checkRetaliation->winGetSize( &rowSize.x, &rowSize.y );
+	checkDoubleClickAttackMove->winGetScreenPosition( &colPos.x, &colPos.y );
+	checkDoubleClickAttackMove->winGetSize( &colSize.x, &colSize.y );
+
+	const Int labelWidth = colSize.x * 2 / 5;
+
+	// label
+	{
+		WinInstanceData inst;
+		copyGadgetLook( &inst, labelTemplate, "OptionsMenu.wnd:FriendsControlBarScaleLabel" );
+		TextData textData = {};
+		if( const TextData *templateData = (const TextData *)labelTemplate->winGetUserData() )
+		{
+			textData.centered = templateData->centered;
+			textData.centeredVertically = templateData->centeredVertically;
+			textData.leftMargin = templateData->leftMargin;
+			textData.topMargin = templateData->topMargin;
+		}
+		const ICoord2D pos = toParentPosition( parent, colPos.x, rowPos.y );
+		GameWindow *label = TheWindowManager->gogoGadgetStaticText( parent, labelTemplate->winGetStatus(), pos.x, pos.y,
+			labelWidth, rowSize.y, &inst, &textData, inst.m_font, FALSE );
+		if( label )
+			GadgetStaticTextSetText( label, UnicodeString( L"Steuerleiste" ) );
+	}
+
+	// slider 50..100 %
+	{
+		WinInstanceData inst;
+		copyGadgetLook( &inst, sliderScrollSpeed, "OptionsMenu.wnd:FriendsControlBarScaleSlider" );
+		SliderData sliderData = {};
+		sliderData.minVal = 50;
+		sliderData.maxVal = 100;
+		Int templateHeight, templateWidth;
+		sliderScrollSpeed->winGetSize( &templateWidth, &templateHeight );
+		const ICoord2D pos = toParentPosition( parent, colPos.x + labelWidth, rowPos.y + ( rowSize.y - templateHeight ) / 2 );
+		sliderControlBarScale = TheWindowManager->gogoGadgetSlider( parent, sliderScrollSpeed->winGetStatus(), pos.x, pos.y,
+			colSize.x - labelWidth, templateHeight, &inst, &sliderData, inst.m_font, FALSE );
+		if( sliderControlBarScale == nullptr )
+			return;
+
+		// the thumb is a child button with its own look
+		GameWindow *templateThumb = sliderScrollSpeed->winGetChild();
+		GameWindow *thumb = sliderControlBarScale->winGetChild();
+		if( templateThumb && thumb )
+		{
+			const WinInstanceData *src = templateThumb->winGetInstanceData();
+			WinInstanceData *dst = thumb->winGetInstanceData();
+			for( Int i = 0; i < MAX_DRAW_DATA; ++i )
+			{
+				dst->m_enabledDrawData[ i ] = src->m_enabledDrawData[ i ];
+				dst->m_disabledDrawData[ i ] = src->m_disabledDrawData[ i ];
+				dst->m_hiliteDrawData[ i ] = src->m_hiliteDrawData[ i ];
+			}
+			thumb->winSetDrawFunc( templateThumb->winGetDrawFunc() );
+		}
+
+		GadgetSliderSetPosition( sliderControlBarScale, REAL_TO_INT_FLOOR( TheControlBarLayoutSettings.scale * 100.0f + 0.5f ) );
+
+		// the size factor only applies to the centered control bar on displays wider than 16:9
+		if( !getControlBarLayout( 800.0f, 600.0f ).uniform )
+			sliderControlBarScale->winEnable( FALSE );
+	}
+}
+
+/// Texture filter and antialiasing check boxes in the free row below "smooth water" in the advanced display options
+static void createGraphicsCheckBoxes()
+{
+	checkAnisotropicFiltering = nullptr;
+	checkAntiAliasing = nullptr;
+
+	if( !checkSmoothWater || !checkHeatEffects )
+		return;
+
+	ICoord2D leftPos, rightPos, size;
+	checkSmoothWater->winGetScreenPosition( &leftPos.x, &leftPos.y );
+	checkSmoothWater->winGetSize( &size.x, &size.y );
+	checkHeatEffects->winGetScreenPosition( &rightPos.x, &rightPos.y );
+
+	checkAnisotropicFiltering = createCheckBoxLike( checkSmoothWater, "OptionsMenu.wnd:FriendsCheckAnisotropic",
+		leftPos.x, leftPos.y + size.y, UnicodeString( L"Scharfe Texturen" ) );
+	checkAntiAliasing = createCheckBoxLike( checkSmoothWater, "OptionsMenu.wnd:FriendsCheckAntiAliasing",
+		rightPos.x, leftPos.y + size.y, UnicodeString( L"Kantengl\u00e4ttung" ) );
+
+	if( checkAnisotropicFiltering )
+		GadgetCheckBoxSetChecked( checkAnisotropicFiltering, TheGlobalData->m_textureFilteringMode == TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC );
+	if( checkAntiAliasing )
+		GadgetCheckBoxSetChecked( checkAntiAliasing, TheGlobalData->m_antiAliasLevel != WW3D::MULTISAMPLE_MODE_NONE );
+}
+#endif
+
 static void setDefaults()
 {
 	constexpr const Bool ModifyDisplaySettings = FALSE;
@@ -374,6 +538,15 @@ static void setDefaults()
 		GadgetCheckBoxSetChecked( checkProps, TheGlobalData->m_useTrees);
 	}
 	}
+
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+	if( sliderControlBarScale )
+		GadgetSliderSetPosition( sliderControlBarScale, 100 );
+	if( checkAnisotropicFiltering )
+		GadgetCheckBoxSetChecked( checkAnisotropicFiltering, TRUE );
+	if( checkAntiAliasing )
+		GadgetCheckBoxSetChecked( checkAntiAliasing, FALSE );
+#endif
 }
 
 static void saveOptions()
@@ -594,6 +767,36 @@ static void saveOptions()
 		AsciiString prefString;
 		prefString.format("%d", val);
 		(*pref)["AnisotropyLevel"] = prefString;
+	}
+#endif
+
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+	//-------------------------------------------------------------------------------------------------
+	// texture filter and antialiasing, both take effect with the next game start
+	if( checkAnisotropicFiltering )
+	{
+		const Int mode = GadgetCheckBoxIsChecked( checkAnisotropicFiltering )
+			? TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC : TextureFilterClass::TEXTURE_FILTER_BILINEAR;
+		TheWritableGlobalData->m_textureFilteringMode = mode;
+		TheWritableGlobalData->m_textureAnisotropyLevel = TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_16X;
+		(*pref)["TextureFilter"] = TextureFilterClass::TextureFilterModeString[mode];
+		(*pref)["AnisotropyLevel"] = "16";
+	}
+	if( checkAntiAliasing )
+	{
+		const Int mode = GadgetCheckBoxIsChecked( checkAntiAliasing ) ? WW3D::MULTISAMPLE_MODE_4X : WW3D::MULTISAMPLE_MODE_NONE;
+		TheWritableGlobalData->m_antiAliasLevel = mode;
+		AsciiString prefString;
+		prefString.format("%d", mode);
+		(*pref)["AntiAliasing"] = prefString;
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// control bar size, takes effect immediately
+	if( sliderControlBarScale && sliderControlBarScale->winGetEnabled() )
+	{
+		setControlBarUserScale( GadgetSliderGetPosition( sliderControlBarScale ) / 100.0f );
+		NGMP_OnlineServicesManager::Settings.Save();
 	}
 #endif
 
@@ -1430,6 +1633,11 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	// set the gamma slider
  	GadgetSliderSetPosition( sliderGamma, REAL_TO_INT(pref->getGammaValue()) );
+
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+	createControlBarScaleSlider();
+	createGraphicsCheckBoxes();
+#endif
 
 	// show menu
 	layout->hide( FALSE );

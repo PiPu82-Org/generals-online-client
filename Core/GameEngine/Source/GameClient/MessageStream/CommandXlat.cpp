@@ -64,6 +64,7 @@
 #include "GameClient/GUICallbacks.h"
 #include "GameClient/Shell.h"
 #include "GameClient/ControlBar.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/SelectionInfo.h"
 #include "GameClient/SelectionXlat.h"
 
@@ -3940,6 +3941,29 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 
                 disp = DESTROY_MESSAGE;
             }
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+            else if ((key == KEY_PGUP || key == KEY_PGDN) && BitIsSet(msg->getArgument(1)->integer, KEY_STATE_CONTROL)
+                && TheGameLogic->isInGame() && !TheGameLogic->isInShellGame())
+            {
+                // Ctrl+PgUp / Ctrl+PgDn: size of the centered control bar in 5 % steps
+                UnicodeString text;
+                if (getControlBarLayout(800.0f, 600.0f).uniform)
+                {
+                    const Int step = (key == KEY_PGUP) ? 1 : -1;
+                    const Int percent = clamp(50, (REAL_TO_INT_FLOOR(TheControlBarLayoutSettings.scale * 20.0f + 0.5f) + step) * 5, 100);
+                    setControlBarUserScale(percent / 100.0f);
+                    NGMP_OnlineServicesManager::Settings.Save();
+                    text.format(L"Steuerleiste: %d %%", percent);
+                }
+                else
+                {
+                    text = L"Steuerleiste: Gr\u00f6\u00dfe nur bei Bildschirmen breiter als 16:9 einstellbar";
+                }
+                TheInGameUI->messageNoFormat(text);
+
+                disp = DESTROY_MESSAGE;
+            }
+#endif
             else if (key == KEY_F5 || key == KEY_INS)
             {
                 if (GameSpyIsOverlayOpen(GSOVERLAY_BUDDY))

@@ -84,7 +84,14 @@ TextureFilterClass::TextureFilterMode OptionPreferences::getTextureFilterMode() 
 {
 	OptionPreferences::const_iterator it = find("TextureFilter");
 	if (it == end())
+	{
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+		// sharp terrain at the flat camera angles of high resolutions
+		return TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC;
+#else
 		return TextureFilterClass::TEXTURE_FILTER_BILINEAR;
+#endif
+	}
 
 	return TextureFilterClass::getTextureFilterMode(it->second.str());
 }
@@ -93,7 +100,13 @@ TextureFilterClass::AnisotropicFilterMode OptionPreferences::getTextureAnisotrop
 {
 	OptionPreferences::const_iterator it = find("AnisotropyLevel");
 	if (it == end())
+	{
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+		return TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_16X;
+#else
 		return TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_2X;
+#endif
+	}
 
 	TextureFilterClass::AnisotropicFilterMode level = (TextureFilterClass::AnisotropicFilterMode)atoi(it->second.str());
 	level = clamp(TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_2X, level, TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_16X);

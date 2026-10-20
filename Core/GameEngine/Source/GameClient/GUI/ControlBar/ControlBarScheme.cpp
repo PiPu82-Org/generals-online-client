@@ -1031,6 +1031,19 @@ void ControlBarSchemeManager::init()
 
 }
 
+//-----------------------------------------------------------------------------
+void ControlBarSchemeManager::refreshLayout()
+{
+	if( m_currentScheme == nullptr )
+		return;
+
+	const ControlBarLayout layout = getControlBarLayout( (Real)m_currentScheme->m_ScreenCreationRes.x, (Real)m_currentScheme->m_ScreenCreationRes.y );
+	m_multiplier = layout.scale;
+	m_layoutOffset.x = REAL_TO_INT(layout.offset.x);
+	m_layoutOffset.y = REAL_TO_INT(layout.offset.y);
+	m_currentScheme->init();
+}
+
 //
 // only recommended to use if you know what you're doing, cause you could actually load in
 // a control bar built for 16x12 into an 8x6 screen which would use a lot more memory then it should
