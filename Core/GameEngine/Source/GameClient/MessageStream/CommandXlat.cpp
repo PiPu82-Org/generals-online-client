@@ -3950,7 +3950,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
                 if (getControlBarLayout(800.0f, 600.0f).uniform)
                 {
                     const Int step = (key == KEY_PGUP) ? 1 : -1;
-                    const Int percent = clamp(50, (REAL_TO_INT_FLOOR(TheControlBarLayoutSettings.scale * 20.0f + 0.5f) + step) * 5, 100);
+                    const Int percent = clamp<Int>(50, ((Int)REAL_TO_INT_FLOOR(TheControlBarLayoutSettings.scale * 20.0f + 0.5f) + step) * 5, 100);
                     setControlBarUserScale(percent / 100.0f);
                     NGMP_OnlineServicesManager::Settings.UI_SaveControlBarLayout();
                     text.format(L"Steuerleiste: %d %%", percent);
