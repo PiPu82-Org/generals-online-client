@@ -761,6 +761,11 @@ public:
 	void switchControlBarStage( ControlBarStages stage );
 	void toggleControlBarStage();
 
+	/// Called around setControlBarUserScale() moving the control bar windows: the control bar is put into
+	/// its default stage, afterwards the stored positions and the scheme are updated and the stage restored.
+	void beginControlBarRelayout();
+	void endControlBarRelayout();
+
 	const Image *getStarImage();
 
 	Color getBorderColor(){return m_commandBarBorderColor;}
@@ -1034,6 +1039,8 @@ private:
 
 	ICoord2D m_controlBarForegroundMarkerPos;
 	ICoord2D m_controlBarBackgroundMarkerPos;
+	ICoord2D m_buildTooltipLastOffset;	///< control bar movement already applied to the build tooltip
+	ControlBarStages m_relayoutStage;		///< stage to restore after a relayout
 
 	Bool m_radarAttackGlowOn;
 	Int m_remainingRadarAttackGlowFrames;

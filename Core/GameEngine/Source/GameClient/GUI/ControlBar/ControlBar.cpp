@@ -63,6 +63,7 @@
 
 #include "GameClient/AnimateWindowManager.h"
 #include "GameClient/ControlBar.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/ControlBarScheme.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/Display.h"
@@ -904,6 +905,8 @@ ControlBar::ControlBar()
 
 	m_currContext = CB_CONTEXT_NONE;
 	m_defaultControlBarPosition.x = m_defaultControlBarPosition.y = 0;
+	m_buildTooltipLastOffset.x = m_buildTooltipLastOffset.y = 0;
+	m_relayoutStage = CONTROL_BAR_STAGE_DEFAULT;
 	m_genStarFlash = FALSE;
 	m_genStarFlashTimeAccumulator = 0.0f;
 	m_genStarOff = nullptr;
@@ -3048,6 +3051,43 @@ void ControlBar::switchControlBarStage( ControlBarStages stage )
 	}
 
 }
+//-------------------------------------------------------------------------------------------------
+void ControlBar::beginControlBarRelayout()
+{
+	// the stored default positions are only valid in the default stage
+	m_relayoutStage = m_currentControlBarStage;
+	if( m_relayoutStage != CONTROL_BAR_STAGE_DEFAULT && m_contextParent[ CP_MASTER ] )
+		switchControlBarStage( CONTROL_BAR_STAGE_DEFAULT );
+}
+
+//-------------------------------------------------------------------------------------------------
+void ControlBar::endControlBarRelayout()
+{
+	// control bar windows not created (e.g. tools without GUI)
+	if( m_contextParent[ CP_MASTER ] == nullptr )
+		return;
+
+	m_contextParent[ CP_MASTER ]->winGetPosition( &m_defaultControlBarPosition.x, &m_defaultControlBarPosition.y );
+
+	// the scheme images and the build tooltip follow the marker relative to these positions
+	GameWindow *marker = TheWindowManager->winGetWindowFromId( nullptr, NAMEKEY( "ControlBar.wnd:BackgroundMarker" ) );
+	if( marker )
+	{
+		marker->winGetScreenPosition( &m_controlBarForegroundMarkerPos.x, &m_controlBarForegroundMarkerPos.y );
+		marker->winGetScreenPosition( &m_controlBarBackgroundMarkerPos.x, &m_controlBarBackgroundMarkerPos.y );
+	}
+	m_buildTooltipLastOffset.x = m_buildTooltipLastOffset.y = 0;
+
+	// new image scale and offset, also places the windows the scheme positions itself
+	if( m_controlBarSchemeManager )
+		m_controlBarSchemeManager->refreshLayout();
+
+	if( m_relayoutStage != CONTROL_BAR_STAGE_DEFAULT )
+		switchControlBarStage( m_relayoutStage );
+
+	markUIDirty();
+}
+
 void ControlBar::setDefaultControlBarConfig()
 {
 //	if(m_currentControlBarStage == CONTROL_BAR_STAGE_SQUISHED)
@@ -3825,5 +3865,11 @@ void ControlBar::setFullViewportHeight()
 
 void ControlBar::setScaledViewportHeight()
 {
+	// a centered (uniform) control bar leaves the world visible to its left and right
+	if (getControlBarLayout(800.0f, 600.0f).uniform)
+	{
+		setFullViewportHeight();
+		return;
+	}
 	TheTacticalView->setHeight(TheDisplay->getHeight() * TheGlobalData->m_viewportHeightScale);
 }

@@ -15,7 +15,10 @@
 
 #define GENERALS_ONLINE_VERSION_STRING "100126_QFE2" // NOTE: Format is critical here for Sentry to work
 
+// The friends edition offers texture filtering and antialiasing in the advanced display options
+#if !defined(GENERALS_ONLINE_FRIENDS_EDITION)
 #define GENERALS_ONLINE_DISABLE_TEXTURE_FILTERING_AND_AA 1
+#endif
 
 #define GENERALS_ONLINE_LOBBY_MAX_PASSWORD_LENGTH 16
 
@@ -70,6 +73,14 @@ void showNotificationBox(AsciiString nick, UnicodeString message, bool bPlaySoun
 #define GENERALS_ONLINE_MIN_LOBBY_CAMERA_ZOOM 210
 #define GENERALS_ONLINE_MAX_LOBBY_CAMERA_ZOOM 1000
 
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+// Friends edition: the camera may zoom out at least this many times the default lobby height (the whole terrain is drawn
+// then), and the mouse wheel zooms proportionally faster above GENERALS_ONLINE_MAX_LOBBY_CAMERA_ZOOM.
+#define GENERALS_ONLINE_FRIENDS_CAMERA_ZOOM_FACTOR 2
+// Starting money choices offered in skirmish, LAN and online lobbies (in addition to Multiplayer.ini)
+#define GENERALS_ONLINE_FRIENDS_STARTING_MONEY { 100000, 250000, 500000, 1000000 }
+#endif
+
 #define GENERALS_ONLINE_HIGH_FPS_SERVER 1
 
 #if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
@@ -104,6 +115,11 @@ static int FRAME_GROUPING_CAP = 64;
 #endif
 
 #define GENERALS_ONLINE_WIDESCREEN 1
+
+// Host of a self-hosted GeneralsOnline service; empty = official servers. Can be overridden in settings.json (network.server_host).
+#ifndef GENERALS_ONLINE_DEFAULT_SERVER_HOST
+#define GENERALS_ONLINE_DEFAULT_SERVER_HOST ""
+#endif
 
 #if defined(GENERALS_ONLINE_WIDESCREEN)
 #define DEFAULT_DISPLAY_WIDTH      800

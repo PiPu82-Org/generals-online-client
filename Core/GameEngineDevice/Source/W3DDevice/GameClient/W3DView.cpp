@@ -2283,6 +2283,12 @@ void W3DView::setDefaultView(Real pitch, Real angle, Real maxHeight)
     {
         TheWritableGlobalData->m_minCameraHeight = NGMP_OnlineServicesManager::Settings.Camera_GetMinHeight();
         TheWritableGlobalData->m_maxCameraHeight = NGMP_OnlineServicesManager::Settings.DetermineCameraMaxHeight();
+#if defined(GENERALS_ONLINE_FRIENDS_EDITION)
+        // zoom out much further; draw the whole terrain so no black border appears at the edge of the draw window
+        TheWritableGlobalData->m_maxCameraHeight = std::max<Real>(TheGlobalData->m_maxCameraHeight,
+            (Real)(GENERALS_ONLINE_DEFAULT_LOBBY_CAMERA_ZOOM * GENERALS_ONLINE_FRIENDS_CAMERA_ZOOM_FACTOR));
+        TheWritableGlobalData->m_drawEntireTerrain = TRUE;
+#endif
     }
 
 #endif

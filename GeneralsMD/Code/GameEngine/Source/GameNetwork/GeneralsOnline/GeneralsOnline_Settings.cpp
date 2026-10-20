@@ -1,5 +1,10 @@
 #include "GameNetwork/GeneralsOnline/GeneralsOnline_Settings.h"
+#include "GameClient/ControlBarLayout.h"
 #include "../json.hpp"
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <fstream>
 #include "../OnlineServices_LobbyInterface.h"
 #include "../OnlineServices_Init.h"
 
@@ -12,6 +17,10 @@
 #define SETTINGS_KEY_RENDER_LIMIT_FRAMERATE "limit_framerate"
 #define SETTINGS_KEY_RENDER_FRAMERATE_LIMIT_FPS_VAL "fps_limit"
 #define SETTINGS_KEY_RENDER_DRAW_STATS_OVERLAY "stats_overlay"
+
+#define SETTINGS_KEY_UI "ui"
+#define SETTINGS_KEY_UI_CONTROLBAR_LAYOUT "controlbar_layout"
+#define SETTINGS_KEY_UI_CONTROLBAR_SCALE "controlbar_scale"
 
 #define SETTINGS_KEY_CHAT "chat"
 #define SETTINGS_KEY_CHAT_LIFE_SECONDS "duration_seconds_until_fade_out"
@@ -32,6 +41,8 @@
 #define SETTINGS_KEY_NETWORK "network"
 #define SETTINGS_KEY_NETWORK_HTTP_VERSION "http_version"
 #define SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT "use_alternative_endpoint"
+#define SETTINGS_KEY_NETWORK_SERVER_HOST "server_host"
+#define SETTINGS_KEY_NETWORK_SERVER_USE_TLS "server_use_tls"
 
 #define SETTINGS_KEY_PLUGINS "plugins"
 #define SETTINGS_KEY_PLUGINS_ANTICHEAT "anticheat"
@@ -41,6 +52,7 @@
 
 #define SETTINGS_FILENAME_LEGACY "GeneralsOnline_settings.json"
 #define SETTINGS_FILENAME "settings.json"
+#define SERVER_FILENAME "Server.ini" // friends edition: server address next to the game exe
 
 GenOnlineSettings::GenOnlineSettings()
 {
@@ -92,6 +104,94 @@ std::string GenOnlineSettings::GetAnticheatPlugin() const
     }
 
     return m_Plugins_Anticheat;
+}
+
+static bool IsValidServerHost(const std::string& strHost)
+{
+	// host name or IP (optionally with :port) only, it is put into URLs
+	return !strHost.empty() && std::all_of(strHost.begin(), strHost.end(), [](unsigned char c) { return std::isalnum(c) || c == '.' || c == '-' || c == ':'; });
+}
+
+// Reads Server.ini from the game directory, e.g.
+//   Adresse = 192.168.178.172:9101
+//   HTTPS = nein
+// Without an HTTPS line, a host with a port or a plain IP uses HTTP, a domain name uses HTTPS.
+void GenOnlineSettings::LoadServerFile(const std::string& strPath)
+{
+	std::ifstream file(strPath);
+	if (!file)
+	{
+		return;
+	}
+
+	auto trim = [](std::string s)
+	{
+		const char* ws = " \t\r\n\"";
+		s.erase(0, s.find_first_not_of(ws));
+		s.erase(s.find_last_not_of(ws) + 1);
+		return s;
+	};
+
+	std::string strHost;
+	int iTLS = -1; // -1 = automatic
+	std::string line;
+	while (std::getline(file, line))
+	{
+		line = trim(line);
+		if (line.empty() || line[0] == ';' || line[0] == '#' || line[0] == '[')
+		{
+			continue;
+		}
+
+		const size_t eq = line.find('=');
+		if (eq == std::string::npos)
+		{
+			continue;
+		}
+
+		std::string key = trim(line.substr(0, eq));
+		std::string value = trim(line.substr(eq + 1));
+		std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+
+		if (key == "adresse" || key == "address" || key == "server")
+		{
+			// tolerate a pasted URL
+			for (const char* prefix : { "http://", "https://" })
+			{
+				if (value.rfind(prefix, 0) == 0)
+				{
+					value = value.substr(strlen(prefix));
+				}
+			}
+			while (!value.empty() && value.back() == '/')
+			{
+				value.pop_back();
+			}
+			strHost = value;
+		}
+		else if (key == "https" || key == "tls")
+		{
+			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+			iTLS = (value == "ja" || value == "yes" || value == "true" || value == "1") ? 1 : 0;
+		}
+	}
+
+	if (!IsValidServerHost(strHost))
+	{
+		NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] %s: no valid server address, ignored", SERVER_FILENAME);
+		return;
+	}
+
+	if (iTLS < 0)
+	{
+		const std::string strName = strHost.substr(0, strHost.find(':'));
+		const bool bIsIP = std::all_of(strName.begin(), strName.end(), [](unsigned char c) { return std::isdigit(c) || c == '.'; });
+		iTLS = (strHost.find(':') != std::string::npos || bIsIP) ? 0 : 1;
+	}
+
+	m_Network_ServerHost = strHost;
+	m_Network_ServerUseTLS = iTLS == 1;
+	NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] %s: server %s (%s)", SERVER_FILENAME, strHost.c_str(), m_Network_ServerUseTLS ? "https" : "http");
 }
 
 void GenOnlineSettings::Load(void)
@@ -215,6 +315,27 @@ void GenOnlineSettings::Load(void)
 				}
 			}
 
+			if (jsonSettings.contains(SETTINGS_KEY_UI))
+			{
+				auto uiSettings = jsonSettings[SETTINGS_KEY_UI];
+
+				if (uiSettings.contains(SETTINGS_KEY_UI_CONTROLBAR_LAYOUT) && uiSettings[SETTINGS_KEY_UI_CONTROLBAR_LAYOUT].is_string())
+				{
+					const std::string strLayout = uiSettings[SETTINGS_KEY_UI_CONTROLBAR_LAYOUT];
+					if (strLayout == "stretch")
+						TheControlBarLayoutSettings.mode = CONTROLBAR_LAYOUT_STRETCH;
+					else if (strLayout == "uniform")
+						TheControlBarLayoutSettings.mode = CONTROLBAR_LAYOUT_UNIFORM;
+					else
+						TheControlBarLayoutSettings.mode = CONTROLBAR_LAYOUT_AUTO;
+				}
+
+				if (uiSettings.contains(SETTINGS_KEY_UI_CONTROLBAR_SCALE))
+				{
+					TheControlBarLayoutSettings.scale = std::clamp<float>(static_cast<float>(uiSettings[SETTINGS_KEY_UI_CONTROLBAR_SCALE]), 0.5f, 1.f);
+				}
+			}
+
             if (jsonSettings.contains(SETTINGS_KEY_NETWORK))
             {
                 auto networkSettings = jsonSettings[SETTINGS_KEY_NETWORK];
@@ -237,6 +358,20 @@ void GenOnlineSettings::Load(void)
                 if (networkSettings.contains(SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT))
                 {
                     m_Network_UseAlternativeEndpoint = networkSettings[SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT];
+                }
+
+                if (networkSettings.contains(SETTINGS_KEY_NETWORK_SERVER_HOST) && networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST].is_string())
+                {
+                    const std::string strHost = networkSettings[SETTINGS_KEY_NETWORK_SERVER_HOST];
+                    if (IsValidServerHost(strHost))
+                    {
+                        m_Network_ServerHost = strHost;
+                    }
+                }
+
+                if (networkSettings.contains(SETTINGS_KEY_NETWORK_SERVER_USE_TLS) && networkSettings[SETTINGS_KEY_NETWORK_SERVER_USE_TLS].is_boolean())
+                {
+                    m_Network_ServerUseTLS = networkSettings[SETTINGS_KEY_NETWORK_SERVER_USE_TLS];
                 }
             }
 
@@ -347,6 +482,7 @@ void GenOnlineSettings::Load(void)
 		m_Render_FramerateLimit_FPSVal = 60;
 		m_Render_DrawStatsOverlay = true;
 		m_Chat_LifeSeconds = 30;
+		TheControlBarLayoutSettings = ControlBarLayoutSettings();
 
         m_Social_Notification_FriendComesOnline_Menus = true;
         m_Social_Notification_FriendComesOnline_Gameplay = true;
@@ -354,6 +490,9 @@ void GenOnlineSettings::Load(void)
         m_Social_Notification_FriendGoesOffline_Gameplay = true;
 	}
 	
+	// Server.ini next to the exe wins over settings.json (simple to edit for friends)
+	LoadServerFile(std::format("{}/{}", GameDir, SERVER_FILENAME));
+
 	if (bReadFailed)
 	{
 		// keep the file on disk, the defaults above only apply to this session
@@ -397,11 +536,22 @@ void GenOnlineSettings::Save()
 				}
 		},
 
+		{
+			SETTINGS_KEY_UI,
+				{
+					{SETTINGS_KEY_UI_CONTROLBAR_LAYOUT, TheControlBarLayoutSettings.mode == CONTROLBAR_LAYOUT_STRETCH ? "stretch"
+						: TheControlBarLayoutSettings.mode == CONTROLBAR_LAYOUT_UNIFORM ? "uniform" : "auto"},
+					{SETTINGS_KEY_UI_CONTROLBAR_SCALE, TheControlBarLayoutSettings.scale},
+				}
+		},
+
         {
             SETTINGS_KEY_NETWORK,
                 {
                     {SETTINGS_KEY_NETWORK_HTTP_VERSION, m_Network_HTTPVersion},
-                    {SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT, m_Network_UseAlternativeEndpoint}
+                    {SETTINGS_KEY_NETWORK_USE_ALTERNATIVE_ENDPOINT, m_Network_UseAlternativeEndpoint},
+                    {SETTINGS_KEY_NETWORK_SERVER_HOST, m_Network_ServerHost},
+                    {SETTINGS_KEY_NETWORK_SERVER_USE_TLS, m_Network_ServerUseTLS}
                 }
         },
 

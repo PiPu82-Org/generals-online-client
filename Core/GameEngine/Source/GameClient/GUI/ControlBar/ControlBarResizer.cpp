@@ -51,6 +51,7 @@
 // USER INCLUDES //////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
 #include "GameClient/ControlBar.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/ControlBarResizer.h"
 #include "GameClient/GameWindow.h"
 #include "GameClient/GameWindowManager.h"
@@ -188,6 +189,17 @@ void ControlBarResizer::sizeWindowsAlt()
 	Real x = (Real)TheDisplay->getWidth() / GENERALS_ONLINE_WIDESCREEN_X_SCALE;
 	Real y = (Real)TheDisplay->getHeight() / GENERALS_ONLINE_WIDESCREEN_Y_SCALE;
 #endif
+	// the alt positions in ControlBarResizer.ini are authored for 800x600
+	Real xOffset = 0.0f;
+	Real yOffset = 0.0f;
+	const ControlBarLayout layout = getControlBarLayout( 800.0f, 600.0f );
+	if( layout.uniform )
+	{
+		x = layout.scale.x;
+		y = layout.scale.y;
+		xOffset = layout.offset.x;
+		yOffset = layout.offset.y;
+	}
 
 	
 	while (it != m_resizerWindowsList.end())
@@ -206,7 +218,7 @@ void ControlBarResizer::sizeWindowsAlt()
 			continue;
 		}
 
-		win->winSetPosition(rWin->m_altPos.x * x, rWin->m_altPos.y * y);
+		win->winSetPosition(rWin->m_altPos.x * x + xOffset, rWin->m_altPos.y * y + yOffset);
 		if(rWin->m_altSize.x >0 || rWin->m_altSize.y > 0)
 			win->winSetSize(rWin->m_altSize.x *x, rWin->m_altSize.y *y);
 		DEBUG_LOG(("sizeWindowsAlt:%s pos X:%d pos Y: %d size X:%d sizeY: %d",rWin->m_name.str(), rWin->m_altPos.x*x, rWin->m_altPos.y*y,rWin->m_altSize.x*x, rWin->m_altSize.y *y));

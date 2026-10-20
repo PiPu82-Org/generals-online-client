@@ -20,11 +20,18 @@ public:
 	float Camera_GetMaxHeight_WhenLobbyHost() const { return m_Camera_MaxHeight_LobbyHost; }
 
 	float DetermineCameraMaxHeight();
+	void LoadServerFile(const std::string& strPath);
 
 	void Graphics_SetFPS(int fpsLimit, bool bLimitFramerate)
 	{
 		m_Render_FramerateLimit_FPSVal = fpsLimit;
 		m_Render_LimitFramerate = bLimitFramerate;
+		Save();
+	}
+
+	/// TheControlBarLayoutSettings was changed (options menu, Ctrl+PgUp/PgDn), write it to settings.json
+	void UI_SaveControlBarLayout()
+	{
 		Save();
 	}
 
@@ -73,6 +80,13 @@ public:
 	bool DataPacks_UseCommunityPatch() const { return m_DataPacks_UseCommunityPatch; }
 
 	bool Network_UseAlternativeEndpoint() const { return m_Network_UseAlternativeEndpoint; }
+	const std::string& Network_ServerHost() const { return m_Network_ServerHost; }
+	bool Network_UsesCustomServer() const { return !m_Network_ServerHost.empty(); }
+	// http/ws instead of https/wss, only meant for tests in a private network (no certificate needed)
+	bool Network_ServerUsesTLS() const { return m_Network_ServerUseTLS || !Network_UsesCustomServer(); }
+	const char* Network_ServerScheme() const { return Network_ServerUsesTLS() ? "https" : "http"; }
+	// host without ":port", for STUN/TURN which use their own port
+	std::string Network_ServerHostName() const { return m_Network_ServerHost.substr(0, m_Network_ServerHost.find(':')); }
 	EHTTPVersion Network_GetHTTPVersion() const { return m_Network_HTTPVersion; }
 	int Network_GetHTTPVersionForCurl() const
 	{
@@ -145,4 +159,6 @@ private:
 
 	EHTTPVersion m_Network_HTTPVersion = EHTTPVersion::HTTP_VERSION_AUTO;
 	bool m_Network_UseAlternativeEndpoint = false;
+	std::string m_Network_ServerHost = GENERALS_ONLINE_DEFAULT_SERVER_HOST;
+	bool m_Network_ServerUseTLS = true;
 };

@@ -55,6 +55,7 @@
 #include "Common/GameMemory.h"
 #include "Common/NameKeyGenerator.h"
 #include "Common/FunctionLexicon.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/Display.h"
 #include "GameClient/WindowLayout.h"
 #include "GameClient/Gadget.h"
@@ -488,6 +489,12 @@ static Bool parseTooltip( const char *token, WinInstanceData *instData,
 
 }
 
+/// set while a control bar WND file is parsed, its windows are placed with getControlBarLayout()
+static ControlBarAnchor s_controlBarAnchor = CONTROLBAR_ANCHOR_NONE;
+/// WND rect and creation resolution of the window parsed last, see registerControlBarWindow()
+static IRegion2D s_lastCreationRect;
+static ICoord2D s_lastCreationRes;
+
 // parseScreenRect ============================================================
 /** Parse the screen rect entry which tells us the position and size
 	* of window.  Note we scale for the current resolution if needed
@@ -521,16 +528,29 @@ static Bool parseScreenRect( const char *token, char *buffer,
 	c = strtok( nullptr, seps );  // y creation resolution
 	scanInt( c, createRes.y );
 
+	s_lastCreationRect = screenRegion;
+	s_lastCreationRes = createRes;
+
 	//
 	// shrink or expand the screen region by the ratio of the current
 	// resolution divided by the creation resolution
 	//
 	Real xScale = (Real)TheDisplay->getWidth() / (Real)createRes.x;
 	Real yScale = (Real)TheDisplay->getHeight() / (Real)createRes.y;
-	screenRegion.lo.x = (Int)((Real)screenRegion.lo.x * xScale);
-	screenRegion.lo.y = (Int)((Real)screenRegion.lo.y * yScale);
-	screenRegion.hi.x = (Int)((Real)screenRegion.hi.x * xScale);
-	screenRegion.hi.y = (Int)((Real)screenRegion.hi.y * yScale);
+	Real xOffset = 0.0f;
+	Real yOffset = 0.0f;
+	if( s_controlBarAnchor != CONTROLBAR_ANCHOR_NONE )
+	{
+		const ControlBarLayout layout = getControlBarLayout( (Real)createRes.x, (Real)createRes.y, s_controlBarAnchor );
+		xScale = layout.scale.x;
+		yScale = layout.scale.y;
+		xOffset = layout.offset.x;
+		yOffset = layout.offset.y;
+	}
+	screenRegion.lo.x = (Int)((Real)screenRegion.lo.x * xScale + xOffset);
+	screenRegion.lo.y = (Int)((Real)screenRegion.lo.y * yScale + yOffset);
+	screenRegion.hi.x = (Int)((Real)screenRegion.hi.x * xScale + xOffset);
+	screenRegion.hi.y = (Int)((Real)screenRegion.hi.y * yScale + yOffset);
 
 	//
 	// given the screen region upper left compute the upper left that we
@@ -2322,6 +2342,8 @@ static GameWindow *parseWindow( File *inFile, char *buffer )
 	void *data = nullptr;
 	ICoord2D parentSize;
 	AsciiString asciibuf;
+	IRegion2D creationRect;
+	ICoord2D creationRes;
 
 	//
 	// reset our 'static globals' that house the current parsed window callback
@@ -2384,6 +2406,8 @@ static GameWindow *parseWindow( File *inFile, char *buffer )
 	assert( strcmp( c, "SCREENRECT" ) == 0 );
 	if( parseScreenRect( c, buffer, &x, &y, &width, &height ) == FALSE )
 		goto cleanupAndExit;
+	creationRect = s_lastCreationRect;
+	creationRes = s_lastCreationRes;
 
 	// parse all the field definitions
 	while( TRUE )
@@ -2444,9 +2468,12 @@ static GameWindow *parseWindow( File *inFile, char *buffer )
 
 				// Create a window using the current description
 				if( window == nullptr )
+				{
 					window = createWindow( type, instData.m_id, instData.getStatus(), x, y,
 																 width, height, &instData, data,
 																 systemFunc, inputFunc, tooltipFunc, drawFunc );
+					registerControlBarWindow( window, creationRect, creationRes, s_controlBarAnchor );
+				}
 
 
 				goto cleanupAndExit;
@@ -2462,6 +2489,7 @@ static GameWindow *parseWindow( File *inFile, char *buffer )
 
 				if (window == nullptr)
 					goto cleanupAndExit;
+				registerControlBarWindow( window, creationRect, creationRes, s_controlBarAnchor );
 
 				// Parses the CHILD's window info.
 				if( parseChildWindows( window, inFile, buffer ) == FALSE )
@@ -2700,6 +2728,7 @@ GameWindow *GameWindowManager::winCreateFromScript( AsciiString filenameString,
 {
 	const char* filename = filenameString.str();
 	static char buffer[ WIN_BUFFER_LENGTH ]; 		// input buffer for reading
+	s_controlBarAnchor = getControlBarAnchorForWindowFile( filenameString );
 	GameWindow *firstWindow = nullptr;
   GameWindow *window;
   char filepath[ _MAX_PATH ] = "Window\\";

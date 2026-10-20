@@ -189,7 +189,11 @@ std::string NGMP_OnlineServicesManager::GetAPIEndpoint(const char* szEndpoint)
 	}
 	else // PROD
 	{
-		if (NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint())
+		if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+		{
+			return std::format("{}://{}/env/prod/contract/1/{}", NGMP_OnlineServicesManager::Settings.Network_ServerScheme(), NGMP_OnlineServicesManager::Settings.Network_ServerHost(), szEndpoint);
+		}
+		else if (NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint())
 		{
 			return std::format("https://api-ru.playgenerals.online/env/prod/contract/1/{}", szEndpoint);
 		}
@@ -422,6 +426,15 @@ void NGMP_OnlineServicesManager::StartVersionCheck(std::function<void(bool bSucc
 				else if (authResp.result == EVersionCheckResponseResult::NEEDS_UPDATE)
 				{
 					NetworkLog(ELogVerbosity::LOG_RELEASE, "VERSION CHECK: Needs Update");
+
+					// never download and run executables chosen by a self-hosted server,
+					// updates for such setups are installed manually
+					if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+					{
+						NetworkLog(ELogVerbosity::LOG_RELEASE, "VERSION CHECK: Self-hosted server requires a newer client, automatic update disabled");
+						fnCallback(false, false);
+						return;
+					}
 
 					// the name becomes a local path, so it must be a bare file name
 					const std::string& strName = authResp.patcher_name;
@@ -762,6 +775,11 @@ void NGMP_OnlineServicesManager::CancelUpdate()
 
 void NGMP_OnlineServicesManager::LaunchPatcher()
 {
+	if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+	{
+		return;
+	}
+
 	char GameDir[MAX_PATH + 1] = {};
 	::GetCurrentDirectoryA(MAX_PATH + 1u, GameDir);
 
@@ -811,6 +829,11 @@ void NGMP_OnlineServicesManager::LaunchPatcher()
 
 void NGMP_OnlineServicesManager::StartDownloadUpdate(std::function<void(void)> cb)
 {
+	if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+	{
+		return;
+	}
+
 	TheDownloadManager->SetFileName("Connecting to update service...");
 	TheDownloadManager->OnStatusUpdate(DOWNLOADSTATUS_CONNECTING);
 
@@ -866,7 +889,7 @@ void NGMP_OnlineServicesManager::OnLogin(ELoginResult loginResult, const char* s
 		m_pWebSocket = std::make_shared<WebSocket>();
 
 		// TODO_NGMP: This should come from the service, if the service was russia-aware
-		std::string strWebsocketAddr = NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint() ? "wss://api-ru.playgenerals.online/ws" : std::string(szWSAddr);
+		std::string strWebsocketAddr = NGMP_OnlineServicesManager::Settings.Network_UseAlternativeEndpoint() && !NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer() ? "wss://api-ru.playgenerals.online/ws" : std::string(szWSAddr);
 
         m_pWebSocket->Connect(strWebsocketAddr.c_str(), false, [=]()
             {
@@ -902,7 +925,10 @@ void NGMP_OnlineServicesManager::Init()
 	m_pHTTPManager = new HTTPManager();
 	m_pHTTPManager->Initialize();
 
-    std::string strPlugin = NGMP_OnlineServicesManager::Settings.GetAnticheatPlugin();
+    // the official anticheat plugins work with the GeneralsOnline anticheat backend, not with self-hosted servers
+    std::string strPlugin = NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer()
+        ? std::string()
+        : NGMP_OnlineServicesManager::Settings.GetAnticheatPlugin();
 
 	// Empty name means no anticheat plugin configured; skip loading.
 	if (!strPlugin.empty())
@@ -913,6 +939,8 @@ void NGMP_OnlineServicesManager::Init()
 
 	// TODO_NGMP: Better location
 	// TODO_NGMP: Get all of this from the service
+	// the friends edition registers its own choices at engine start (GameEngine.cpp)
+#if !defined(GENERALS_ONLINE_FRIENDS_EDITION)
 	int moneyVal = 100000;
 	int maxMoneyVal = 1000000;
 
@@ -925,6 +953,7 @@ void NGMP_OnlineServicesManager::Init()
 
 		moneyVal += 50000;
 	}
+#endif
 
 #if 0
 	std::map<AsciiString, RGBColor> mapColors;
@@ -1089,6 +1118,12 @@ void NGMP_OnlineServicesManager::InitSentry()
 
 		std::error_code ec;
 		std::filesystem::create_directories(strDumpPath, ec);
+	}
+
+	// crash reports of self-hosted setups don't belong to the GeneralsOnline team
+	if (NGMP_OnlineServicesManager::Settings.Network_UsesCustomServer())
+	{
+		return;
 	}
 
 	sentry_options_t* options = sentry_options_new();

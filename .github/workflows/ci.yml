@@ -137,13 +137,8 @@ jobs:
         include:
           # Generals Online networking deps (curl, GameNetworkingSockets, sentry) come from vcpkg,
           # so only the vcpkg presets can build GeneralsMD.
-          - preset: "win32-vcpkg"
-            tools: false
-            extras: true
-          - preset: "win32-vcpkg-profile"
-            tools: false
-            extras: true
-          - preset: "win32-vcpkg-debug"
+          # Freunde-Edition (Fork PiPu82-Org): nur die eigene Release-Variante bauen
+          - preset: "win32-vcpkg-friends"
             tools: false
             extras: true
       fail-fast: false

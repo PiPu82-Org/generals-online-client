@@ -60,6 +60,7 @@
 
 #include "GameClient/Display.h"
 #include "GameClient/GlobalLanguage.h"
+#include "GameClient/ControlBarLayout.h"
 
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -280,7 +281,11 @@ Int GlobalLanguage::adjustFontSize(Int theFontSize)
 	// TheSuperHackers @todo This function is called very often.
 	// Therefore cache the adjustFactor on resolution change to not recompute it on every call.
 	const Real resolutionScaler = getResolutionFontSizeAdjustment();
-	const Real adjustFactor = getResolutionFontSizeScale(m_resolutionFontSizeMethod, resolutionScaler);
+	ResolutionFontSizeMethod method = m_resolutionFontSizeMethod;
+	// the centered (uniform) control bar is scaled by the display height, so its fonts must not grow with the width
+	if (method != ResolutionFontSizeMethod_Classic && getControlBarLayout(800.0f, 600.0f).uniform)
+		method = ResolutionFontSizeMethod_Strict;
+	const Real adjustFactor = getResolutionFontSizeScale(method, resolutionScaler);
 	const Int pointSize = REAL_TO_INT_FLOOR(theFontSize * adjustFactor);
 
 	return pointSize;

@@ -136,6 +136,10 @@ endif()
 # Icon: LoadIcon() handles missing resource gracefully (uses default system icon)
 # Manifest: DPI awareness metadata (nice to have but not essential)
 if(MSVC)
+    if(GENERALS_ONLINE_LARGE_ADDRESS_AWARE)
+        target_link_options(z_generals PRIVATE "/LARGEADDRESSAWARE")
+    endif()
+
     # VS2005 and later adds default manifest, we need to turn it off to prevent conflict with custom manifest
     if(NOT IS_VS6_BUILD)
         target_link_options(z_generals PRIVATE

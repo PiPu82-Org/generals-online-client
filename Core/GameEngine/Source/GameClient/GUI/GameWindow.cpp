@@ -51,6 +51,7 @@
 #include "Common/AudioEventRTS.h"
 #include "Common/Language.h"
 #include "GameClient/WindowLayout.h"
+#include "GameClient/ControlBarLayout.h"
 #include "GameClient/GameWindow.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/Gadget.h"
@@ -131,6 +132,8 @@ GameWindow::~GameWindow()
 	m_editData = nullptr;
 
 	unlinkFromTransitionWindows();
+
+	unregisterControlBarWindow( this );
 
 }
 

@@ -256,6 +256,7 @@ public:
 
 	void setControlBarSchemeByPlayer(Player *p);																				///< Based off the playerTemplate, pick the right scheme for the control bar
 	void setControlBarSchemeByPlayerTemplate( const PlayerTemplate *pt, Bool useSmall = FALSE);
+	void refreshLayout();	///< recompute scale and offset of the current scheme after the control bar size changed
 	void setControlBarScheme(AsciiString schemeName);																										///< SchemeName must be a valid INI entry
 
 	// parse Functions for the INI file
@@ -273,6 +274,7 @@ public:
 private:
 	ControlBarScheme *m_currentScheme;													///< the current scheme that everythign uses
 	Coord2D m_multiplier;
+	ICoord2D m_layoutOffset;	///< screen offset of the scheme images, see ControlBarLayout
 
 	typedef std::list< ControlBarScheme* > ControlBarSchemeList;			///< list of control bar schemes
 	ControlBarSchemeList m_schemeList;
