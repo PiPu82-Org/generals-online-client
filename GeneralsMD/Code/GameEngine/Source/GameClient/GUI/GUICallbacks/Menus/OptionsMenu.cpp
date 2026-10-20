@@ -796,7 +796,7 @@ static void saveOptions()
 	if( sliderControlBarScale && sliderControlBarScale->winGetEnabled() )
 	{
 		setControlBarUserScale( GadgetSliderGetPosition( sliderControlBarScale ) / 100.0f );
-		NGMP_OnlineServicesManager::Settings.Save();
+		NGMP_OnlineServicesManager::Settings.UI_SaveControlBarLayout();
 	}
 #endif
 

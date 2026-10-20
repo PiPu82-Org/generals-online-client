@@ -29,6 +29,12 @@ public:
 		Save();
 	}
 
+	/// TheControlBarLayoutSettings was changed (options menu, Ctrl+PgUp/PgDn), write it to settings.json
+	void UI_SaveControlBarLayout()
+	{
+		Save();
+	}
+
 	void Save_Camera_MaxHeight_WhenLobbyHost(float maxHeight)
 	{
 		if (maxHeight >= GENERALS_ONLINE_MIN_LOBBY_CAMERA_ZOOM && maxHeight <= GENERALS_ONLINE_MAX_LOBBY_CAMERA_ZOOM)
