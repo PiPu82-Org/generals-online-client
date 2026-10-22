@@ -73,6 +73,7 @@ enum
 #include "GameLogic/PartitionManager.h"
 #include "GameClient/ClientRandomValue.h"
 #include "GameClient/FXList.h"
+#include "GameClient/GraphicsEnhancements.h"
 #include "W3DDevice/GameClient/TerrainTex.h"
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DDynamicLight.h"
@@ -462,10 +463,12 @@ void W3DTreeBuffer::updateTexture()
 		Int scale = TERRAIN_TILE_SCALE;
 		theFile = nullptr;
 #if TERRAIN_TILE_SCALE > 1
-		snprintf(texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_HD_TGA_DIR_PATH, m_treeTypes[i].m_data->m_textureName.str());
-		theFile = TheFileSystem->openFile(texturePath, File::READ | File::BINARY);
-		if (theFile != nullptr) {
-			scale = 1;
+		if (TheGraphicsEnhancementSettings.terrainHD) {
+			snprintf(texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_HD_TGA_DIR_PATH, m_treeTypes[i].m_data->m_textureName.str());
+			theFile = TheFileSystem->openFile(texturePath, File::READ | File::BINARY);
+			if (theFile != nullptr) {
+				scale = 1;
+			}
 		}
 #endif
 		if (theFile == nullptr) {

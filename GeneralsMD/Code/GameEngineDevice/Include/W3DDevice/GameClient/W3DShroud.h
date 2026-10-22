@@ -122,4 +122,21 @@ protected:
 	W3DShroudLevel *m_currentFogData;		///<copy of intermediate logical shroud while it's interpolated.
 	void interpolateFogLevels(RECT *rect);		///<fade current fog levels to actual logic side levels.
 	void fillBorderShroudData(W3DShroudLevel level, SurfaceClass* pDestSurface);	///<fill the destination texture with a known value
+
+	// Friends edition: soft shroud edges (TheGraphicsEnhancementSettings.smoothShroud).
+	// The video memory texture gets m_smoothScale x m_smoothScale texels per shroud cell, filled with a
+	// cubic B-spline of the cell values. Texture coordinates stay the same, so every user of the shroud
+	// texture (terrain, water, trees, bridges) keeps working unchanged.
+	Bool m_smooth;								///<TRUE when the shroud is drawn smoothed
+	Int m_smoothScale;							///<texels per shroud cell in m_pDstTexture (1 when not smoothed)
+	IDirect3DSurface8 *m_pSmoothTexture;		///<sysmem copy of m_pDstTexture in smooth mode
+	UnsignedByte *m_smoothDirty;				///<one flag per block of SMOOTH_BLOCK_SIZE x SMOOTH_BLOCK_SIZE texels
+	Int m_smoothBlocksX;
+	Int m_smoothBlocksY;
+	Bool m_smoothAllDirty;						///<recompute the whole smooth texture
+	Bool m_smoothAnyDirty;						///<at least one block needs to be recomputed
+	UnsignedShort m_smoothBorderPixel;			///<shroud color outside the map (R5G6B5 like m_pSrcTexture)
+	void markSmoothDirty(Int cellX, Int cellY);
+	void updateSmoothTexture(SurfaceClass *pDestSurface);
+	void releaseSmoothData();
 };

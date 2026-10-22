@@ -36,6 +36,7 @@
 #include "Common/GameLOD.h"
 #include "GameClient/TerrainVisual.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/GraphicsEnhancements.h"
 #include "Common/OptionPreferences.h"
 
 #define DEFINE_PARTICLE_SYSTEM_NAMES
@@ -630,11 +631,27 @@ void GameLODManager::applyStaticLODLevel(StaticGameLODLevel level)
 		}
 	}
 
+	applyGraphicsEnhancements();
+
 	if (TheTerrainVisual)
 		TheTerrainVisual->setTerrainTracksDetail();
 
 	if (TheGameClient)
 		TheGameClient->setTextureLOD(requestedTextureReduction);
+}
+
+/// Friends edition: the detail levels were made for 2003 hardware, raise the particle limit and the
+/// time tank tracks stay visible (settings.json "graphics", see GraphicsEnhancements.h).
+void GameLODManager::applyGraphicsEnhancements()
+{
+	if (!TheGlobalData)
+		return;
+
+	if (TheGraphicsEnhancementSettings.maxParticles > TheGlobalData->m_maxParticleCount)
+		TheWritableGlobalData->m_maxParticleCount = TheGraphicsEnhancementSettings.maxParticles;
+
+	if (TheGraphicsEnhancementSettings.tankTrackFadeDelayMs > TheGlobalData->m_maxTankTrackFadeDelay)
+		TheWritableGlobalData->m_maxTankTrackFadeDelay = TheGraphicsEnhancementSettings.tankTrackFadeDelayMs;
 }
 
 /**Parse a description of all the LOD settings for a given detail level*/

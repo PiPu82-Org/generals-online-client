@@ -1,5 +1,6 @@
 #include "GameNetwork/GeneralsOnline/GeneralsOnline_Settings.h"
 #include "GameClient/ControlBarLayout.h"
+#include "GameClient/GraphicsEnhancements.h"
 #include "../json.hpp"
 #include <algorithm>
 #include <cctype>
@@ -21,6 +22,12 @@
 #define SETTINGS_KEY_UI "ui"
 #define SETTINGS_KEY_UI_CONTROLBAR_LAYOUT "controlbar_layout"
 #define SETTINGS_KEY_UI_CONTROLBAR_SCALE "controlbar_scale"
+
+#define SETTINGS_KEY_GRAPHICS "graphics"
+#define SETTINGS_KEY_GRAPHICS_SMOOTH_SHROUD "smooth_shroud"
+#define SETTINGS_KEY_GRAPHICS_TERRAIN_HD "terrain_hd"
+#define SETTINGS_KEY_GRAPHICS_MAX_PARTICLES "max_particles"
+#define SETTINGS_KEY_GRAPHICS_TANK_TRACK_FADE_MS "tank_track_fade_ms"
 
 #define SETTINGS_KEY_CHAT "chat"
 #define SETTINGS_KEY_CHAT_LIFE_SECONDS "duration_seconds_until_fade_out"
@@ -336,6 +343,31 @@ void GenOnlineSettings::Load(void)
 				}
 			}
 
+			if (jsonSettings.contains(SETTINGS_KEY_GRAPHICS))
+			{
+				auto graphicsSettings = jsonSettings[SETTINGS_KEY_GRAPHICS];
+
+				if (graphicsSettings.contains(SETTINGS_KEY_GRAPHICS_SMOOTH_SHROUD) && graphicsSettings[SETTINGS_KEY_GRAPHICS_SMOOTH_SHROUD].is_boolean())
+				{
+					TheGraphicsEnhancementSettings.smoothShroud = graphicsSettings[SETTINGS_KEY_GRAPHICS_SMOOTH_SHROUD].get<bool>();
+				}
+
+				if (graphicsSettings.contains(SETTINGS_KEY_GRAPHICS_TERRAIN_HD) && graphicsSettings[SETTINGS_KEY_GRAPHICS_TERRAIN_HD].is_boolean())
+				{
+					TheGraphicsEnhancementSettings.terrainHD = graphicsSettings[SETTINGS_KEY_GRAPHICS_TERRAIN_HD].get<bool>();
+				}
+
+				if (graphicsSettings.contains(SETTINGS_KEY_GRAPHICS_MAX_PARTICLES) && graphicsSettings[SETTINGS_KEY_GRAPHICS_MAX_PARTICLES].is_number())
+				{
+					TheGraphicsEnhancementSettings.maxParticles = std::clamp<int>(static_cast<int>(graphicsSettings[SETTINGS_KEY_GRAPHICS_MAX_PARTICLES]), 0, 50000);
+				}
+
+				if (graphicsSettings.contains(SETTINGS_KEY_GRAPHICS_TANK_TRACK_FADE_MS) && graphicsSettings[SETTINGS_KEY_GRAPHICS_TANK_TRACK_FADE_MS].is_number())
+				{
+					TheGraphicsEnhancementSettings.tankTrackFadeDelayMs = std::clamp<int>(static_cast<int>(graphicsSettings[SETTINGS_KEY_GRAPHICS_TANK_TRACK_FADE_MS]), 0, 3600000);
+				}
+			}
+
             if (jsonSettings.contains(SETTINGS_KEY_NETWORK))
             {
                 auto networkSettings = jsonSettings[SETTINGS_KEY_NETWORK];
@@ -483,6 +515,7 @@ void GenOnlineSettings::Load(void)
 		m_Render_DrawStatsOverlay = true;
 		m_Chat_LifeSeconds = 30;
 		TheControlBarLayoutSettings = ControlBarLayoutSettings();
+		TheGraphicsEnhancementSettings = GraphicsEnhancementSettings();
 
         m_Social_Notification_FriendComesOnline_Menus = true;
         m_Social_Notification_FriendComesOnline_Gameplay = true;
@@ -542,6 +575,16 @@ void GenOnlineSettings::Save()
 					{SETTINGS_KEY_UI_CONTROLBAR_LAYOUT, TheControlBarLayoutSettings.mode == CONTROLBAR_LAYOUT_STRETCH ? "stretch"
 						: TheControlBarLayoutSettings.mode == CONTROLBAR_LAYOUT_UNIFORM ? "uniform" : "auto"},
 					{SETTINGS_KEY_UI_CONTROLBAR_SCALE, TheControlBarLayoutSettings.scale},
+				}
+		},
+
+		{
+			SETTINGS_KEY_GRAPHICS,
+				{
+					{SETTINGS_KEY_GRAPHICS_SMOOTH_SHROUD, (bool)TheGraphicsEnhancementSettings.smoothShroud},
+					{SETTINGS_KEY_GRAPHICS_TERRAIN_HD, (bool)TheGraphicsEnhancementSettings.terrainHD},
+					{SETTINGS_KEY_GRAPHICS_MAX_PARTICLES, (int)TheGraphicsEnhancementSettings.maxParticles},
+					{SETTINGS_KEY_GRAPHICS_TANK_TRACK_FADE_MS, (int)TheGraphicsEnhancementSettings.tankTrackFadeDelayMs},
 				}
 		},
 

@@ -43,6 +43,7 @@
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "Common/WellKnownKeys.h"
+#include "GameClient/GraphicsEnhancements.h"
 
 #include "GameLogic/PolygonTrigger.h"
 #include "GameLogic/SidesList.h"
@@ -1004,7 +1005,7 @@ void WorldHeightMap::readTexClass(TXTextureClass *texClass, TileData **tileData,
 #if TERRAIN_TILE_SCALE > 1
 		// Use the high resolution file if there is one with enough tiles. Edge textures are masks
 		// with exact colors, they always come from the original files.
-		if (!isEdgeClass)
+		if (!isEdgeClass && TheGraphicsEnhancementSettings.terrainHD)
 		{
 			snprintf( texturePath, ARRAY_SIZE(texturePath), "%s%s", TERRAIN_HD_TGA_DIR_PATH, terrain->getTexture().str() );
 			theFile = TheFileSystem->openFile( texturePath, File::READ|File::BINARY);

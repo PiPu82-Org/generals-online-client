@@ -41,6 +41,10 @@
 #include "WW3D2/textureloader.h"
 #include "Common/GlobalData.h"
 #include "GameLogic/PartitionManager.h"
+#include "GameClient/GraphicsEnhancements.h"
+
+#include <math.h>
+#include <vector>
 
 
 //-----------------------------------------------------------------------------
@@ -67,6 +71,11 @@
 #define DEFAULT_TERRAIN_SIZE 1024 //assumed size of largest terrain possible (in vertices)
 #define DEFAULT_VISIBLE_TERRAIN 96	//assumed size of visible terrain cells.
 
+// Friends edition: soft shroud edges
+#define SMOOTH_SHROUD_SCALE				4		//texels per shroud cell in the smoothed texture
+#define SMOOTH_SHROUD_BLOCK_SIZE		8		//shroud cells per dirty block
+#define SMOOTH_SHROUD_MAX_TEXTURE_SIZE	4096	//largest smoothed texture, the scale is reduced for huge maps
+
 //-----------------------------------------------------------------------------
 W3DShroud::W3DShroud()
 {
@@ -86,12 +95,23 @@ W3DShroud::W3DShroud()
 	m_numCellsX=0;
 	m_numCellsY=0;
 	m_shroudFilter=TextureFilterClass::FILTER_TYPE_DEFAULT;
+
+	m_smooth=FALSE;
+	m_smoothScale=1;
+	m_pSmoothTexture=nullptr;
+	m_smoothDirty=nullptr;
+	m_smoothBlocksX=0;
+	m_smoothBlocksY=0;
+	m_smoothAllDirty=TRUE;
+	m_smoothAnyDirty=TRUE;
+	m_smoothBorderPixel=0;
 }
 
 //-----------------------------------------------------------------------------
 W3DShroud::~W3DShroud()
 {
 	ReleaseResources();
+	releaseSmoothData();
 
 	if (m_pSrcTexture)
 		m_pSrcTexture->Release();
@@ -184,8 +204,38 @@ void W3DShroud::init(WorldHeightMap *pMap, Real worldCellSizeX, Real worldCellSi
 		fillShroudData(TheGlobalData->m_shroudAlpha);	//initialize shroud to a known value
 #endif
 
-	if (dstTextureWidth != m_dstTextureWidth || dstTextureHeight != m_dstTextureHeight )	///@todo: Check if size has changed - probably never
+	// Friends edition: soft shroud edges. The video memory texture gets several texels per shroud cell.
+	releaseSmoothData();
+	Int smoothScale = 1;
+	m_smooth = TheGraphicsEnhancementSettings.smoothShroud && dstTextureWidth > 0 && dstTextureHeight > 0;
+#if defined(RTS_DEBUG)
+	if (TheGlobalData && TheGlobalData->m_fogOfWarOn)
+		m_smooth = FALSE;	//the debug fog keeps its alpha texture
+#endif
+	if (m_smooth)
+	{
+		smoothScale = SMOOTH_SHROUD_SCALE;
+		while (smoothScale > 1 && (dstTextureWidth*smoothScale > SMOOTH_SHROUD_MAX_TEXTURE_SIZE || dstTextureHeight*smoothScale > SMOOTH_SHROUD_MAX_TEXTURE_SIZE))
+			smoothScale /= 2;
+		if (smoothScale < 2)
+		{
+			m_smooth = FALSE;
+			smoothScale = 1;
+		}
+	}
+	if (m_smooth)
+	{
+		m_smoothBlocksX = (dstTextureWidth + SMOOTH_SHROUD_BLOCK_SIZE - 1) / SMOOTH_SHROUD_BLOCK_SIZE;
+		m_smoothBlocksY = (dstTextureHeight + SMOOTH_SHROUD_BLOCK_SIZE - 1) / SMOOTH_SHROUD_BLOCK_SIZE;
+		m_smoothDirty = new UnsignedByte[m_smoothBlocksX*m_smoothBlocksY];
+		memset(m_smoothDirty, 1, m_smoothBlocksX*m_smoothBlocksY);
+		m_smoothAllDirty = TRUE;
+		m_smoothAnyDirty = TRUE;
+	}
+
+	if (dstTextureWidth != m_dstTextureWidth || dstTextureHeight != m_dstTextureHeight || smoothScale != m_smoothScale)	///@todo: Check if size has changed - probably never
 		ReleaseResources();	//need a new sized shroud
+	m_smoothScale = smoothScale;
 
 	if (!m_pDstTexture )
 	{	m_dstTextureWidth = dstTextureWidth;
@@ -215,6 +265,8 @@ void W3DShroud::reset()
 	delete [] m_currentFogData;
 	m_currentFogData=nullptr;
 
+	releaseSmoothData();
+
 	m_clearDstTexture = TRUE;	//always refill the destination texture after a reset
 }
 
@@ -241,6 +293,9 @@ Bool W3DShroud::ReAcquireResources()
 			m_pDstTexture = MSGNEW("TextureClass") TextureClass(m_dstTextureWidth,m_dstTextureHeight,WW3D_FORMAT_A4R4G4B4,MIP_LEVELS_1, TextureClass::POOL_DEFAULT);
 		else
 #endif
+		if (m_smoothScale > 1)
+			m_pDstTexture = MSGNEW("TextureClass") TextureClass(m_dstTextureWidth*m_smoothScale,m_dstTextureHeight*m_smoothScale,WW3D_FORMAT_X8R8G8B8,MIP_LEVELS_1, TextureClass::POOL_DEFAULT);
+		else
 			m_pDstTexture = MSGNEW("TextureClass") TextureClass(m_dstTextureWidth,m_dstTextureHeight,WW3D_FORMAT_R5G6B5,MIP_LEVELS_1, TextureClass::POOL_DEFAULT);
 
 		DEBUG_ASSERTCRASH( m_pDstTexture != nullptr, ("Failed ReAcquire of shroud texture"));
@@ -341,7 +396,10 @@ void W3DShroud::setShroudLevel(Int x, Int y, W3DShroudLevel level, Bool textureO
 //				bluepixel -= redpixel;
 //			}
 
-			*texel = ( ((bluepixel&0xf8) >> 3) | ((greenpixel&0xfc)<<3) | ((redpixel&0xf8)<<8));
+			const UnsignedShort newPixel = ( ((bluepixel&0xf8) >> 3) | ((greenpixel&0xfc)<<3) | ((redpixel&0xf8)<<8));
+			if (m_smooth && *texel != newPixel)
+				markSmoothDirty(x, y);
+			*texel = newPixel;
 		}
 		return;
 	}
@@ -399,6 +457,8 @@ void W3DShroud::fillShroudData(W3DShroudLevel level)
 			ptr[x]=pixel;
 		ptr	+= pitch;
 	}
+
+	m_smoothAllDirty = TRUE;
 
 #ifdef DO_FOG_INTERPOLATION
 	//Set the final shroud state.  May differe from current state because of time interpolation.
@@ -688,6 +748,41 @@ void W3DShroud::render(CameraClass *cam)
 		pDestSurface=m_pDstTexture->Get_Surface_Level(0);
 	}
 
+	if (m_smooth && m_smoothScale > 1)
+	{	//Friends edition: soft shroud edges
+		SurfaceClass::SurfaceDescription desc;
+		pDestSurface->Get_Description(desc);
+		if (desc.Format != WW3D_FORMAT_X8R8G8B8 && desc.Format != WW3D_FORMAT_A8R8G8B8)
+		{	//the device gave us a texture format we can't fill, go back to the original shroud
+			REF_PTR_RELEASE (pDestSurface);
+			releaseSmoothData();
+			ReleaseResources();
+			m_smoothScale = 1;
+			ReAcquireResources();
+			return;
+		}
+
+		if (m_clearDstTexture)
+		{
+			m_clearDstTexture = FALSE;
+			W3DShroudLevel level = m_boderShroudLevel;
+			if (level < TheGlobalData->m_shroudAlpha)
+				level = TheGlobalData->m_shroudAlpha;
+			const UnsignedInt color = TheGlobalData->m_shroudColor.getAsInt();
+			UnsignedInt bluepixel = (UnsignedInt)((Real)level*((Real)(color&0xff)/255.0f));
+			UnsignedInt greenpixel = (UnsignedInt)((Real)level*((Real)((color&0xff00)>>8)/255.0f));
+			UnsignedInt redpixel = (UnsignedInt)((Real)level*((Real)((color&0xff0000)>>16)/255.0f));
+			if (level == 255)
+				redpixel = greenpixel = bluepixel = 255;
+			m_smoothBorderPixel = ( ((bluepixel&0xf8) >> 3) | ((greenpixel&0xfc)<<3) | ((redpixel&0xf8)<<8));
+			m_smoothAllDirty = TRUE;
+		}
+
+		updateSmoothTexture(pDestSurface);
+		REF_PTR_RELEASE (pDestSurface);
+		return;
+	}
+
 	RECT	srcRect;
 	POINT	dstPoint={1,1};	//first row/column is reserved for border.
 
@@ -720,6 +815,191 @@ void W3DShroud::render(CameraClass *cam)
 	}
 
 	REF_PTR_RELEASE (pDestSurface);
+}
+
+//-----------------------------------------------------------------------------
+///Free the data of the smoothed shroud. The video memory texture is released by ReleaseResources().
+void W3DShroud::releaseSmoothData()
+{
+	if (m_pSmoothTexture)
+	{
+		m_pSmoothTexture->Release();
+		m_pSmoothTexture=nullptr;
+	}
+	delete [] m_smoothDirty;
+	m_smoothDirty=nullptr;
+	m_smoothBlocksX=0;
+	m_smoothBlocksY=0;
+	m_smooth=FALSE;
+}
+
+//-----------------------------------------------------------------------------
+///A shroud cell changed, recompute the smoothed texels it influences (up to two cells away).
+void W3DShroud::markSmoothDirty(Int cellX, Int cellY)
+{
+	if (!m_smoothDirty)
+		return;
+
+	//texel 0 of the texture is the border, so cell x is texel x+1
+	const Int texelX = cellX + 1;
+	const Int texelY = cellY + 1;
+	Int blockX0 = (texelX >= 2 ? texelX - 2 : 0) / SMOOTH_SHROUD_BLOCK_SIZE;
+	Int blockY0 = (texelY >= 2 ? texelY - 2 : 0) / SMOOTH_SHROUD_BLOCK_SIZE;
+	Int blockX1 = (texelX + 2) / SMOOTH_SHROUD_BLOCK_SIZE;
+	Int blockY1 = (texelY + 2) / SMOOTH_SHROUD_BLOCK_SIZE;
+	if (blockX1 >= m_smoothBlocksX)
+		blockX1 = m_smoothBlocksX - 1;
+	if (blockY1 >= m_smoothBlocksY)
+		blockY1 = m_smoothBlocksY - 1;
+
+	for (Int by=blockY0; by<=blockY1; by++)
+		for (Int bx=blockX0; bx<=blockX1; bx++)
+			m_smoothDirty[by*m_smoothBlocksX + bx] = 1;
+
+	m_smoothAnyDirty = TRUE;
+}
+
+//-----------------------------------------------------------------------------
+///Fill the changed parts of the smoothed shroud texture: every shroud cell is a sample at the cell
+///center, the texels in between are a cubic B-spline of the 4x4 nearest samples. The B-spline is
+///smooth everywhere and never overshoots, so the shroud gets round edges instead of steps.
+void W3DShroud::updateSmoothTexture(SurfaceClass *pDestSurface)
+{
+	if (!m_smoothAllDirty && !m_smoothAnyDirty)
+		return;
+
+	const Int scale = m_smoothScale;
+	const Int fineWidth = m_dstTextureWidth * scale;
+	const Int fineHeight = m_dstTextureHeight * scale;
+
+	if (!m_pSmoothTexture)
+	{	//sysmem copy in the format of the video memory texture (CopyRects needs the same format)
+		SurfaceClass::SurfaceDescription desc;
+		pDestSurface->Get_Description(desc);
+		m_pSmoothTexture = DX8Wrapper::_Create_DX8_Surface(fineWidth, fineHeight, desc.Format);
+		if (!m_pSmoothTexture)
+			return;
+		m_smoothAllDirty = TRUE;
+	}
+
+	//B-spline weights for each texel position inside a cell. Texel k of a cell has its center at
+	//(k+0.5)/scale, the samples sit at the cell centers (0.5).
+	Real weights[SMOOTH_SHROUD_SCALE][4];
+	Int firstSample[SMOOTH_SHROUD_SCALE];
+	for (Int k=0; k<scale; k++)
+	{
+		const Real p = ((Real)k + 0.5f) / (Real)scale - 0.5f;
+		const Int i = (Int)floorf(p);
+		const Real t = p - (Real)i;
+		firstSample[k] = i - 1;
+		weights[k][0] = (1.0f - t) * (1.0f - t) * (1.0f - t) / 6.0f;
+		weights[k][1] = (3.0f * t * t * t - 6.0f * t * t + 4.0f) / 6.0f;
+		weights[k][2] = (-3.0f * t * t * t + 3.0f * t * t + 3.0f * t + 1.0f) / 6.0f;
+		weights[k][3] = t * t * t / 6.0f;
+	}
+
+	D3DLOCKED_RECT lockedRect;
+	if (FAILED(m_pSmoothTexture->LockRect(&lockedRect, nullptr, 0)))
+		return;
+
+	//samples needed for one block: two before and two after
+	static Real samples[SMOOTH_SHROUD_BLOCK_SIZE + 4][SMOOTH_SHROUD_BLOCK_SIZE + 4][3];
+	static Real rows[SMOOTH_SHROUD_BLOCK_SIZE + 4][SMOOTH_SHROUD_BLOCK_SIZE * SMOOTH_SHROUD_SCALE][3];
+	std::vector<RECT> changedRects;
+
+	for (Int by=0; by<m_smoothBlocksY; by++)
+	{
+		for (Int bx=0; bx<m_smoothBlocksX; bx++)
+		{
+			UnsignedByte &dirty = m_smoothDirty[by*m_smoothBlocksX + bx];
+			if (!m_smoothAllDirty && !dirty)
+				continue;
+			dirty = 0;
+
+			//block in texels of the unsmoothed texture (texel 0 is the border)
+			const Int texelX0 = bx * SMOOTH_SHROUD_BLOCK_SIZE;
+			const Int texelY0 = by * SMOOTH_SHROUD_BLOCK_SIZE;
+			const Int numX = (texelX0 + SMOOTH_SHROUD_BLOCK_SIZE <= m_dstTextureWidth) ? SMOOTH_SHROUD_BLOCK_SIZE : m_dstTextureWidth - texelX0;
+			const Int numY = (texelY0 + SMOOTH_SHROUD_BLOCK_SIZE <= m_dstTextureHeight) ? SMOOTH_SHROUD_BLOCK_SIZE : m_dstTextureHeight - texelY0;
+
+			//read the cell colors, outside of the map the border color
+			for (Int sy=0; sy<numY+4; sy++)
+			{
+				const Int cellY = texelY0 - 2 + sy - 1;
+				for (Int sx=0; sx<numX+4; sx++)
+				{
+					const Int cellX = texelX0 - 2 + sx - 1;
+					UnsignedShort pixel = m_smoothBorderPixel;
+					if (cellX >= 0 && cellY >= 0 && cellX < m_numCellsX && cellY < m_numCellsY)
+						pixel = *(UnsignedShort *)((Byte *)m_srcTextureData + cellX*2 + cellY*m_srcTexturePitch);
+					const UnsignedInt red = (pixel >> 11) & 0x1f;
+					const UnsignedInt green = (pixel >> 5) & 0x3f;
+					const UnsignedInt blue = pixel & 0x1f;
+					samples[sy][sx][0] = (Real)((red << 3) | (red >> 2));
+					samples[sy][sx][1] = (Real)((green << 2) | (green >> 4));
+					samples[sy][sx][2] = (Real)((blue << 3) | (blue >> 2));
+				}
+			}
+
+			//horizontal pass
+			for (Int sy=0; sy<numY+4; sy++)
+			{
+				for (Int fx=0; fx<numX*scale; fx++)
+				{
+					const Int k = fx % scale;
+					const Int s0 = fx / scale + 2 + firstSample[k];
+					const Real *w = weights[k];
+					for (Int c=0; c<3; c++)
+						rows[sy][fx][c] = w[0]*samples[sy][s0][c] + w[1]*samples[sy][s0+1][c] + w[2]*samples[sy][s0+2][c] + w[3]*samples[sy][s0+3][c];
+				}
+			}
+
+			//vertical pass, write the texels
+			for (Int fy=0; fy<numY*scale; fy++)
+			{
+				const Int k = fy % scale;
+				const Int s0 = fy / scale + 2 + firstSample[k];
+				const Real *w = weights[k];
+				UnsignedInt *dst = (UnsignedInt *)((Byte *)lockedRect.pBits + (texelY0*scale + fy)*lockedRect.Pitch) + texelX0*scale;
+				for (Int fx=0; fx<numX*scale; fx++)
+				{
+					UnsignedInt color = 0xff000000;
+					for (Int c=0; c<3; c++)
+					{
+						Int value = (Int)(w[0]*rows[s0][fx][c] + w[1]*rows[s0+1][fx][c] + w[2]*rows[s0+2][fx][c] + w[3]*rows[s0+3][fx][c] + 0.5f);
+						if (value < 0)
+							value = 0;
+						else if (value > 255)
+							value = 255;
+						color |= (UnsignedInt)value << (16 - c*8);
+					}
+					dst[fx] = color;
+				}
+			}
+
+			RECT rect;
+			rect.left = texelX0 * scale;
+			rect.top = texelY0 * scale;
+			rect.right = (texelX0 + numX) * scale;
+			rect.bottom = (texelY0 + numY) * scale;
+			changedRects.push_back(rect);
+		}
+	}
+
+	m_pSmoothTexture->UnlockRect();
+	m_smoothAllDirty = FALSE;
+	m_smoothAnyDirty = FALSE;
+
+	if (!changedRects.empty())
+	{
+		//same rectangles in the video memory texture (null = same positions)
+		DX8Wrapper::_Copy_DX8_Rects(
+				m_pSmoothTexture,
+				&changedRects[0],
+				(UINT)changedRects.size(),
+				pDestSurface->Peek_D3D_Surface(),
+				nullptr);
+	}
 }
 
 #define FOG_INTERPOLATION_RATE	(255.0f/1000.0f)	//take one second to go from black to fully lit.
