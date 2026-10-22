@@ -296,18 +296,20 @@ bool DX8Wrapper::Init(void* hwnd, bool lite)
         LoadLibrary("dxwrapper_go.dll");
         D3D8Lib = nullptr;
 #if defined(GENERALS_ONLINE_FRIENDS_EDITION)
-        // Friends edition: ReShade. A d3d8to9.dll next to the exe (the d3d8.dll of the d3d8to9 project,
-        // renamed so an old local d3d8.dll like GenTool is still never loaded) turns Direct3D 8 into
-        // Direct3D 9, ReShade sits in d3d9.dll next to the exe. Deleting d3d8to9.dll switches it off.
+        // Friends edition: ReShade. ReShade\d3d8to9.dll (the d3d8.dll of the d3d8to9 project, renamed so
+        // an old local d3d8.dll like GenTool is still never loaded) turns Direct3D 8 into Direct3D 9.
+        // LOAD_WITH_ALTERED_SEARCH_PATH makes its d3d9.dll import resolve in the ReShade folder first,
+        // where ReShade sits as d3d9.dll. Nothing is placed next to the exe, so other exes in the game
+        // folder never load ReShade. Deleting the ReShade folder switches it off.
         {
             char exePath[MAX_PATH];
             const DWORD len = GetModuleFileNameA(nullptr, exePath, MAX_PATH);
             if (len > 0 && len < MAX_PATH)
             {
                 char *lastSlash = strrchr(exePath, '\\');
-                if (lastSlash != nullptr && (size_t)(lastSlash - exePath) + 1 + strlen("d3d8to9.dll") < MAX_PATH)
+                if (lastSlash != nullptr && (size_t)(lastSlash - exePath) + 1 + strlen("ReShade\\d3d8to9.dll") < MAX_PATH)
                 {
-                    strcpy(lastSlash + 1, "d3d8to9.dll");
+                    strcpy(lastSlash + 1, "ReShade\\d3d8to9.dll");
                     if (GetFileAttributesA(exePath) != INVALID_FILE_ATTRIBUTES)
                         D3D8Lib = LoadLibraryExA(exePath, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
                 }
