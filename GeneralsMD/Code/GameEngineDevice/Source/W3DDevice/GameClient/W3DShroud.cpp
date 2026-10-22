@@ -906,6 +906,7 @@ void W3DShroud::updateSmoothTexture(SurfaceClass *pDestSurface)
 	static Real samples[SMOOTH_SHROUD_BLOCK_SIZE + 4][SMOOTH_SHROUD_BLOCK_SIZE + 4][3];
 	static Real rows[SMOOTH_SHROUD_BLOCK_SIZE + 4][SMOOTH_SHROUD_BLOCK_SIZE * SMOOTH_SHROUD_SCALE][3];
 	std::vector<RECT> changedRects;
+	std::vector<POINT> changedPoints;
 
 	for (Int by=0; by<m_smoothBlocksY; by++)
 	{
@@ -983,6 +984,8 @@ void W3DShroud::updateSmoothTexture(SurfaceClass *pDestSurface)
 			rect.right = (texelX0 + numX) * scale;
 			rect.bottom = (texelY0 + numY) * scale;
 			changedRects.push_back(rect);
+			POINT point = { rect.left, rect.top };
+			changedPoints.push_back(point);
 		}
 	}
 
@@ -992,13 +995,14 @@ void W3DShroud::updateSmoothTexture(SurfaceClass *pDestSurface)
 
 	if (!changedRects.empty())
 	{
-		//same rectangles in the video memory texture (null = same positions)
+		//same rectangles in the video memory texture. The destination points are passed explicitly:
+		//with null points some implementations (Wine) copy every rectangle to 0,0.
 		DX8Wrapper::_Copy_DX8_Rects(
 				m_pSmoothTexture,
 				&changedRects[0],
 				(UINT)changedRects.size(),
 				pDestSurface->Peek_D3D_Surface(),
-				nullptr);
+				&changedPoints[0]);
 	}
 }
 
